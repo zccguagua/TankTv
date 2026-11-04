@@ -31,7 +31,7 @@ adb devices
 
 ```sh
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
-adb shell cmd package resolve-activity --brief com.example.tanktv
+adb shell cmd package resolve-activity --brief com.zcc.tanktv
 ```
 
 - [ ] `install` 输出 `Success`
@@ -39,7 +39,7 @@ adb shell cmd package resolve-activity --brief com.example.tanktv
 
 > 如果首页没有:先把 tv_banner 做出来这次已经加了 LEANBACK_LAUNCHER,
 > 理论上应该出现。若仍不出现,用这条直接启动:
-> `adb shell am start -n com.example.tanktv/org.libsdl.app.SDLActivity`
+> `adb shell am start -n com.zcc.tanktv/org.libsdl.app.SDLActivity`
 
 ---
 
@@ -49,7 +49,7 @@ adb shell cmd package resolve-activity --brief com.example.tanktv
 
 ```sh
 adb logcat -c
-adb shell am start -n com.example.tanktv/org.libsdl.app.SDLActivity
+adb shell am start -n com.zcc.tanktv/org.libsdl.app.SDLActivity
 adb logcat | grep -iE "SDL|TankTv|KEYDOWN|KEYUP|AndroidRuntime"
 ```
 
@@ -156,7 +156,7 @@ KEYUP   scancode=82 sym=1073741906
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 
 # 卸载
-adb uninstall com.example.tanktv
+adb uninstall com.zcc.tanktv
 
 # 断开电视
 adb disconnect

@@ -397,7 +397,7 @@ set(SDL2_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/SDL")
 > 相对层级视模板所在位置而定,**用 `ls` 逐层验证到 `third_party/SDL` 存在**,不要照抄。
 
 再检查 `app/app/build.gradle` 里的:
-- `applicationId`(随便改成 `com.example.tanktv`)
+- `applicationId`(本项目的最终值是 `com.zcc.tanktv`,写在 `defaultConfig` 里)
 - `minSdk` → 21
 - `targetSdk` / `compileSdk` → 34 或 35
 - `ndkVersion` → 你装的版本
@@ -420,7 +420,7 @@ cmake.dir=D\:\\Sdk\\cmake\\3.22.1
 | 项 | 改成 | 说明 |
 |---|---|---|
 | `namespace` | `"org.libsdl.app"` | 保持不动(Java 里的包名)|
-| `defaultConfig.applicationId` | `"com.example.tanktv"` | **必须写在 defaultConfig 里** |
+| `defaultConfig.applicationId` | `"com.zcc.tanktv"` | **必须写在 defaultConfig 里**;可随时改,改完是另一个 app |
 | `minSdkVersion` | `21` | 模板的 19 太老 |
 | `targetSdkVersion` / `compileSdkVersion` | `34` | 本机已装 |
 | `ndkPath` | `'D:/Sdk/ndk/android-ndk-r26d'` | 用 `ndkPath`,**不要用 local.properties 的 `ndk.dir`**(已弃用,会报 CXX5106)|
@@ -446,8 +446,8 @@ unzip -l app/app/build/outputs/apk/debug/app-debug.apk | grep lib/
 # 有设备时才需要下面这些
 adb devices
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
-adb shell cmd package resolve-activity --brief com.example.tanktv
-adb shell am start -n com.example.tanktv/org.libsdl.app.SDLActivity
+adb shell cmd package resolve-activity --brief com.zcc.tanktv
+adb shell am start -n com.zcc.tanktv/org.libsdl.app.SDLActivity
 adb logcat | grep -iE "SDL|TankTv"
 ```
 
@@ -616,10 +616,10 @@ du -sh $A
 
 ### 6.2 写解包器(Java,子类化 SDLActivity)
 
-新建 `app/app/src/main/java/com/example/tanktv/GameActivity.java`(包名与 `applicationId` 一致):
+新建 `app/app/src/main/java/com/zcc/tanktv/GameActivity.java`(包名与 `applicationId` 一致):
 
 ```java
-package com.example.tanktv;
+package com.zcc.tanktv;
 
 import android.content.res.AssetManager;
 import java.io.*;
@@ -930,7 +930,7 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
                                       P2 = W S A D + 左Ctrl
                                       ⚠️ 没有独立暂停键
 [✓] 游戏完整度:                       stages_count = 35,每关 20 敌人(完整版)
-[✓] APK 包名:                         com.example.tanktv
+[✓] APK 包名:                         com.zcc.tanktv(旧: com.example.tanktv)
 [✓] Java 内 SDL 库名列表:            "SDL2", "main"(模板默认)
 [ ] 遥控器方向键/OK 的 scancode:      需上设备后从 logcat 抄(引导程序已埋日志)
 [ ] Makefile 实际链接库:             SDL2main SDL2 SDL2_image SDL2_ttf SDL2_mixer

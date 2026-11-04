@@ -19,7 +19,7 @@ android {
 
     defaultConfig {
         if (buildAsApplication) {
-            applicationId "com.example.tanktv"
+            applicationId "com.zcc.tanktv"
         }
         minSdkVersion 21
         targetSdkVersion 34
