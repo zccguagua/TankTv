@@ -8,6 +8,8 @@
 
 ## P. 进度看板(每次开工先看这里)
 
+> 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
+
 最近更新:**2026-11-04**(在这台机器上已实际执行并通过)
 
 | 阶段 | 状态 | 产物 / 证据 |
@@ -991,6 +993,20 @@ git add -A && git commit -m "阶段 C: 游戏源码已编入,可启动(无资源
 ---
 
 ## 19. 换电脑后的「五分钟恢复」(专用)
+
+### 19.1 如果只想要代码(新机器上从零开始)
+
+```sh
+# 注意:third_party/ 与 game/ 被 .gitignore 排除了,clone 下来只有 35 个文件(约 200KB)
+git clone https://github.com/zccguagua/TankTv.git
+cd TankTv
+
+# 然后按 4.1 重新拉两个依赖:
+#   third_party/SDL  → codeload zip(见 2B.2)
+#   game/            → codeload zip(见 2B.2)
+```
+
+### 19.2 如果就在同一台机器上继续
 
 ```sh
 # 1. 确认工具链(只要这三行都有输出就能开工)
