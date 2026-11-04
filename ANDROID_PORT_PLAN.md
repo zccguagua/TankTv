@@ -308,6 +308,8 @@ add_subdirectory("${THIRD_PARTY_DIR}/SDL" SDL)
 
 ### 2B.8 阶段 B 最终验证状态
 
+**首次构建(旧机 `/e/AndroidProject/TankTv`,2026-11-04)**:
+
 ```
 BUILD SUCCESSFUL
 app/app/build/outputs/apk/debug/app-debug.apk   1.2 MB
@@ -318,8 +320,37 @@ APK 内容:
   lib/arm64-v8a/libc++_shared.so 1.3 MB
 ```
 
-**尚未验证**:还没装到设备上跑过(执行时 `adb devices` 为空)。
-→ 这是阶段 B 剩下的唯一一步,见下面「卡住的退路」上方的验收命令。
+**实机验证(本机 `/f/AndroidProjects/TankTv`,2026-11-05)**:✅ 已装电视跑通。
+
+换机器后本机环境与旧机不同,补齐这几样才装上电视:
+
+- 本机 SDK = `C:\Users\Administrator\AppData\Local\Android\Sdk`(旧机是 `D:\Sdk`)
+- 补装 NDK r26d → `Sdk\ndk\android-ndk-r26d`;CMake 3.22.1 → `Sdk\cmake\3.22.1`
+- 重拉 SDL 源码 → `third_party/SDL`(codeload zip,见 2B.2)
+- `app/app/build.gradle`:`ndkPath` 改成新路径;`abiFilters` 补上 `armeabi-v7a`(电视是 32 位)
+
+电视验收结果:
+
+- `ro.product.cpu.abi` = `armeabi-v7a`,安装成功,首页能看到图标(LEANBACK_LAUNCHER 生效)
+- 画面:蓝底缓慢变红、平滑逐帧刷新、全屏、无黑边无弹窗
+- 日志三条:
+  - `=== TankTv bootstrap ===` ✅
+  - `SDL version: 2.32.4` ✅
+  - `renderer: opengles2` ✅ = OpenGL ES 2.0 硬件加速(非 software)
+
+**遥控器按键表(阶段 F 直接抄,别再测)**:
+
+| 按键 | scancode | sym | SDL 含义 |
+|---|---|---|---|
+| 上 | 82 | 1073741906 | SDL_SCANCODE_UP |
+| 下 | 81 | 1073741905 | SDL_SCANCODE_DOWN |
+| 左 | 80 | 1073741904 | SDL_SCANCODE_LEFT |
+| 右 | 79 | 1073741903 | SDL_SCANCODE_RIGHT |
+| OK / 确定 | 40 | 13 | SDL_SCANCODE_RETURN → 阶段 F 映射成开火 |
+| 返回 | 41 | 27 | SDL_SCANCODE_ESCAPE → 阶段 F 改成暂停/返回 |
+
+> 注意:OK 键 = 回车(不是玩家1开火键);返回键 = Escape。当前引导程序里
+> `Escape` 会退出 app,所以按返回会直接退出——这是阶段 B 的预期行为,阶段 F 要去掉。
 
 ---
 

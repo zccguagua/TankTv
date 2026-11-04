@@ -15,7 +15,7 @@ android {
 
     // NDK 路径。可以用 -PndkPath=D:/xxx 覆盖,或改下面的默认值。
     // (不用 local.properties 里的 ndk.dir,那个写法已被弃用)
-    ndkPath project.findProperty('ndkPath') ?: 'D:/Sdk/ndk/android-ndk-r26d'
+    ndkPath project.findProperty('ndkPath') ?: 'C:/Users/Administrator/AppData/Local/Android/Sdk/ndk/android-ndk-r26d'
 
     defaultConfig {
         if (buildAsApplication) {
@@ -35,7 +35,7 @@ android {
                 // 先只编 arm64-v8a(绝大多数 Android TV / 盒子都是它),编译快很多。
                 // 需要别的 ABI 时把下面这行改成全部:
                 //   abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-                abiFilters 'arm64-v8a'
+                abiFilters 'armeabi-v7a', 'arm64-v8a'
             }
         }
     }
