@@ -61,6 +61,7 @@
     -->
     <application android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
+        android:banner="@drawable/tv_banner"
         android:allowBackup="true"
         android:theme="@style/AppTheme"
         android:hardwareAccelerated="true" >
@@ -80,6 +81,8 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <!-- Android TV:没有这一行,电视首页不会显示本应用 -->
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
             <!-- Let Android know that we can handle some USB devices and should receive this event -->
             <intent-filter>
