@@ -1,0 +1,23 @@
+# 第三方源码(体积大、可重新获取)
+third_party/
+
+# 游戏上游源码(可直接从 GitHub 重新下载,见文档 4.1)
+game/
+
+# Android 构建产物
+app/build/
+app/app/build/
+app/.gradle/
+app/app/.cxx/
+app/.cxx/
+build/
+.cxx/
+
+# 本机配置(每台机器不同)
+app/local.properties
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
