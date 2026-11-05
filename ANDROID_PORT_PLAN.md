@@ -10,45 +10,37 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-05**(阶段 D 完成:资源进 APK、启动解包、chdir、等比缩放已就绪,待上电视验证)
+最近更新:**2026-11-06**(阶段 F 开火键 + 阶段 G 文字已完成;阶段 I 全屏做了修复但冷启动仍缩左上角,待收尾)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
-| 0 环境 | ✅ 完成 | JDK 17.0.10;SDK `D:/Sdk`(platform 34/35/36);NDK `android-ndk-r26d`;CMake 3.22.1 |
+| 0 环境 | ✅ 完成 | 本机:`F:\AndroidProjects\TankTv`;SDK `C:\Users\Administrator\AppData\Local\Android\Sdk`;NDK r26d;CMake 3.22.1;JDK 17 |
 | A 桌面基线 | ⏭️ **跳过** | 非必需,直接进 Android |
-| B 模板 APK | ✅ **完成**(已上电视验证) | 渐变画面正常,`renderer: OpenGL ES 2.0`;电视是 `armeabi-v7a` |
+| B 模板 APK | ✅ **完成**(已上电视验证) | 渐变画面正常,`renderer: opengles2`;电视是 `armeabi-v7a` |
 | C 接入游戏源码 | ✅ **完成** | APK 2.8MB;`libmain.so` 715KB(arm64)/ 388KB(v7a);无 undefined symbol |
-| D 资源解包 | ✅ **完成**(待上电视验证) | APK 3.5MB;62 个 assets;`GameActivity` 解包+`chdir`;修了 `SDL_main` 入口和缩放竞态 |
-| E 声音 | ⬜ 未开始 | 库已编进去(SDL_mixer + stb_vorbis),资源已就位,只剩验证 |
-| F 输入 | ⬜ **下一步** | 完整方案已写进**第 8 节**。必须先做 8.2 的 F0 诊断(遥控器有哪些闲置键) |
-| G 文字 | ⬜ 未开始 | 现在用 stub,文字不显示 |
-| H/I/J 收尾 | ⬜ 未开始 | — |
+| D 资源解包 | ✅ **完成**(已上电视验证) | 地图/砖墙/坦克加载正常,方向键移动正常 |
+| E 声音 | ⬜ 未开始 | SDL_mixer + stb_vorbis 已编进去,资源已就位,大概率直接有声音,只剩验证 |
+| F 输入 | ✅ **完成** | 遥控器空闲键(菜单/频道/彩色/媒体等)→ 开火键 RCTRL,Java 层 `GameActivity.dispatchKeyEvent` 拦截 |
+| G 文字 | ✅ **完成** | `stb_truetype.h` 单头文件实现 SDL_ttf 子集,菜单/分数/GAME OVER 文字已显示 |
+| H 存档 | ⬜ 未开始 | — |
+| I 分辨率/全屏 | 🟡 **部分完成** | resize helper 改用 display mode 修正窗口;冷启动仍缩左上角(可玩),待收尾 |
+| J TV 收尾 | ⬜ 未开始 | — |
 
-**下一步要做的第一件事**:把 `app-debug.apk` 装到电视,按 `TMP_TV_CHECK.md` 逐项确认。
+**当前能玩**:移动 ✅ / 开火 ✅ / 文字 ✅ / 地图 ✅。冷启动画面缩左上角(暖启动正常),不影响玩。
 
-阶段 D 之后屏幕应该长这样(文字还是空的,正常):
+**已知遗留(换机后优先看)**:
 
-1. 黑色背景中间有 **TANKS 字样的大 LOGO**(来自 `texture.png` 图集)→ 说明贴图加载成功
-2. LOGO 下面一个**坦克光标**(上下按方向键会移动)→ 说明遥控器事件通了
-3. 按 **OK** 进选关,再按 **OK** 从第 1 关开始
-4. 进关卡后能看到地图/砖墙/坦克 → 说明关卡文件也读到了
+1. **阶段 I 全屏**:冷启动第一个 `surfaceChanged` 把窗口报成 464x416,`android_glue.c` 的 resize helper 已改成用 `SDL_GetCurrentDisplayMode` + `SDL_SetWindowSize` 修正,但还没在电视上验证完(电视掉线)。需要抓日志看 `resize helper: window XxY -> display XxY -> window XxY` 确认。
+2. **阶段 E 声音**:大概率已可用(SDL_mixer 已编译),上电视验证即可。
+3. **TCL 电视安装**:`adb install` 报 `INSTALL_FAILED_VERIFICATION_FAILURE`(TCL 自带的 StrategyService 校验),用 U 盘/文件管理器手动装可绕过。
 
-> ⚠️ 现在**还不能开火**:游戏 P1 的开火键写死是右 Ctrl(`KEY_RCTRL`),
-> 遥控器 OK 是 Enter —— 而 Enter 在游戏里已经被占为「暂停」。
-> **阶段 F 的方案已经写好(第 8 节),包含 F0 诊断步骤和两种修法**,照着做即可。
-
-> ⚠️ **本机的三个环境坑(已经在下面 B.2 记录,换机前务必先看)**:
+> ⚠️ **换电脑必看(本机环境记录)**:
 >
-> 1. `github.com` 直连被封 → 拉源码改走 `codeload.github.com` 下载 zip(可用)
-> 2. `D:\.gradle\gradle.properties` 里写死了 `127.0.0.1:7890` 代理,代理不开时 Gradle 全部失败 → 构建时需临时禁用
-> 3. Gradle 官方发行包会被重定向到 github.com(被封)→ 用腾讯云镜像下载,并用 `D:/tools/gradle-8.1.1/bin/gradle` 直接构建(绕开 wrapper)
->
-> ⚠️ **`ndkPath` 是机器相关的**:`app/app/build.gradle` 里默认值已被改成
-> 另一台电脑的 `C:/Users/Administrator/...`。在本机构建时请覆盖:
-> ```sh
-> /d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon \
->   -PndkPath=D:/Sdk/ndk/android-ndk-r26d
-> ```
+> - 本机路径:`F:\AndroidProjects\TankTv`;SDK `C:\Users\Administrator\AppData\Local\Android\Sdk`;NDK `...\ndk\android-ndk-r26d`;CMake `...\cmake\3.22.1`
+> - `game/`、`third_party/` 被 gitignore,换机需重新下载(见 2B.2 的 codeload 方法):SDL 2.32.4、SDL_image 2.8.8、SDL_mixer 2.8.1、Tanks 游戏源码
+> - `github.com` 直连被封,git push 走代理:`git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push`
+> - `app/app/build.gradle` 的 `ndkPath` 默认值是本机路径,换机要用 `-PndkPath=...` 覆盖
+> - `assembleRelease` 需 `lint.checkReleaseBuilds=false`(否则 lint 依赖下载失败),已在 build.gradle 里配好
 
 ---
 

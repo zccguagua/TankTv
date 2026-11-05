@@ -70,25 +70,22 @@ static void *send_initial_resize(void *unused)
         return NULL;
     }
 
-    int w = 0, h = 0;
-    SDL_GetWindowSize(window, &w, &h);
-    if (w <= 0 || h <= 0) {
-        LOGE("resize helper: bad window size %dx%d", w, h);
-        return NULL;
+    /* 用真实屏幕分辨率修正窗口尺寸,而不是读 window 的尺寸。
+     * 冷启动时第一个 surfaceChanged 可能把窗口报成游戏请求的 464x416,
+     * 导致画面只在左上角;display mode 来自 getRealMetrics,恒为全屏尺寸。 */
+    int old_w = 0, old_h = 0;
+    SDL_GetWindowSize(window, &old_w, &old_h);
+
+    SDL_DisplayMode mode;
+    if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0) {
+        SDL_SetWindowSize(window, mode.w, mode.h);
+        int new_w = 0, new_h = 0;
+        SDL_GetWindowSize(window, &new_w, &new_h);
+        LOGI("resize helper: window %dx%d -> display %dx%d -> window %dx%d",
+             old_w, old_h, mode.w, mode.h, new_w, new_h);
+    } else {
+        LOGE("resize helper: cannot get display mode (window %dx%d)", old_w, old_h);
     }
-
-    SDL_Event event;
-    SDL_zero(event);
-    event.type = SDL_WINDOWEVENT;
-    event.window.windowID = GAME_WINDOW_ID;
-    event.window.event = SDL_WINDOWEVENT_RESIZED;
-    event.window.data1 = w;
-    event.window.data2 = h;
-
-    if (SDL_PushEvent(&event) == 1)
-        LOGI("resize helper: queued %dx%d", w, h);
-    else
-        LOGE("resize helper: SDL_PushEvent failed: %s", SDL_GetError());
 
     return NULL;
 }
