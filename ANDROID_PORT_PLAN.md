@@ -10,27 +10,37 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-04**(在这台机器上已实际执行并通过)
+最近更新:**2026-11-05**(阶段 C 完成:34 个游戏源文件已编入,双 ABI 构建通过)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
 | 0 环境 | ✅ 完成 | JDK 17.0.10;SDK `D:/Sdk`(platform 34/35/36);NDK `android-ndk-r26d`;CMake 3.22.1 |
 | A 桌面基线 | ⏭️ **跳过** | 非必需,直接进 Android |
-| B 模板 APK | ✅ **完成** | `app/app/build/outputs/apk/debug/app-debug.apk`(1.2MB)构建成功 |
-| C 接入游戏源码 | ⬜ **下一步** | 游戏源码已就位 `game/`(34 个 .cpp) |
-| D 资源解包 | ⬜ 未开始 | — |
-| E 声音 | ⬜ 未开始 | — |
-| F 输入 | ⬜ 未开始 | — |
-| G 文字 | ⬜ 未开始 | — |
+| B 模板 APK | ✅ **完成**(已上电视验证) | 渐变画面正常,`renderer: OpenGL ES 2.0`;电视是 `armeabi-v7a` |
+| C 接入游戏源码 | ✅ **完成** | APK 2.8MB;`libmain.so` 715KB(arm64)/ 388KB(v7a);无 undefined symbol |
+| D 资源解包 | ⬜ **下一步** | ← 不做这步,装上就崩 |
+| E 声音 | ⬜ 未开始 | 库已编进去(SDL_mixer + stb_vorbis),只差资源 |
+| F 输入 | ⬜ 未开始 | 遥控器映射已知:OK=Enter(40),返回=Escape(41) |
+| G 文字 | ⬜ 未开始 | 现在用 stub,文字不显示 |
 | H/I/J 收尾 | ⬜ 未开始 | — |
 
-**下一步要做的第一件事**:把 `app/app/jni/src/CMakeLists.txt` 里的 `main.c` 换成游戏的 `game/src/**/*.cpp`,见第 5 节。
+**下一步要做的第一件事**:阶段 D(资源解包)。
+⚠️ **目前装上去会在启动时崩溃**:菜单项构造时会 `preload()` 音效,
+`sounds/*.ogg` 不存在 → `Mix_LoadWAV` 返回 NULL → 抛异常。
+所以 C 只能验证「编得过」,要看到画面必须先做 D。
 
 > ⚠️ **本机的三个环境坑(已经在下面 B.2 记录,换机前务必先看)**:
 >
 > 1. `github.com` 直连被封 → 拉源码改走 `codeload.github.com` 下载 zip(可用)
 > 2. `D:\.gradle\gradle.properties` 里写死了 `127.0.0.1:7890` 代理,代理不开时 Gradle 全部失败 → 构建时需临时禁用
 > 3. Gradle 官方发行包会被重定向到 github.com(被封)→ 用腾讯云镜像下载,并用 `D:/tools/gradle-8.1.1/bin/gradle` 直接构建(绕开 wrapper)
+>
+> ⚠️ **`ndkPath` 是机器相关的**:`app/app/build.gradle` 里默认值已被改成
+> 另一台电脑的 `C:/Users/Administrator/...`。在本机构建时请覆盖:
+> ```sh
+> /d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon \
+>   -PndkPath=D:/Sdk/ndk/android-ndk-r26d
+> ```
 
 ---
 
@@ -79,10 +89,15 @@ TankTv/
 │       └── jni/  (或 src/main/jni/)     ← NDK 构建脚本,路径视 SDL 版本而定
 ├── third_party/                ← 第三方库源码,不进版本库
 │   ├── SDL/                    ← SDL2 2.32.4
-│   ├── SDL_image/              ← 可选
-│   └── SDL_mixer/              ← 可选
+│   ├── SDL_image/              ← 2.8.8(PNG 走 stb_image)
+│   └── SDL_mixer/              ← 2.8.1(OGG 走 stb_vorbis)
 └── game/                       ← krystiankaluzny/Tanks 克隆(含 src/ 和 resources/)
 ```
+
+> `app/app/jni/` 下有两个**我们自己的**辅助目录(会进版本库):
+> - `include/SDL2/SDL_{image,mixer}.h` —— 转发头,把 `<SDL2/xxx.h>` 转到 `<xxx.h>`,
+>   因为 libsdl 源码树的头文件不在 `SDL2/` 子目录下
+> - `sdl_ttf_stub/` —— SDL_ttf 占位实现(头 + 5 个空函数),阶段 G 替换
 
 > ⚠️ **`app/app/` 这个双层同名目录是 SDL 模板的原始结构,不要试图拍平**,否则按官方文档改 Gradle 时会到处对不上。下文所有路径都按此写法。
 
@@ -575,28 +590,77 @@ cd /e/AndroidProject/TankTv/app
 
 **通过标准**:能编出 APK,启动后不因 undefined symbol 失败,日志里能看到游戏自己的输出(哪怕紧接着因为找不到资源而 abort)。
 
-### 5.4 阶段 C 的实际待办清单(下次从这里开始)
+### 5.4 ✅ 阶段 C 实施记录(2026-11-05 已完成)
 
-1. **删掉** `app/app/jni/src/main.c`(引导程序,会和游戏的 `main` 冲突)
-2. 改 `app/app/jni/src/CMakeLists.txt`:
+实际做了什么:
+
+1. **删掉** `app/app/jni/src/main.c`(引导程序,会与游戏的 `main` 重复定义)
+2. `app/app/jni/src/CMakeLists.txt` 改为:
    ```cmake
+   set(GAME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../game")
    file(GLOB_RECURSE GAME_SOURCES CONFIGURE_DEPENDS "${GAME_DIR}/src/*.cpp")
-   target_sources(main PRIVATE ${GAME_SOURCES})
-   target_include_directories(main PRIVATE "${GAME_DIR}/src")
+   message(STATUS "游戏源文件数量: ${GAME_SOURCE_COUNT}")   # 实测 34
+   target_sources(main PRIVATE ${GAME_SOURCES} ...)
+   target_include_directories(main PRIVATE "${GAME_DIR}/src" ...)
+   target_link_libraries(main SDL2 SDL2_image SDL2_mixer)
+   set_target_properties(main PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+   target_compile_options(main PRIVATE -Wno-narrowing)
    ```
-   `GAME_DIR = ${CMAKE_CURRENT_SOURCE_DIR}/../../../../game`(4 层,已核对)
-3. 保留 `CXX_STANDARD 17` + 加 `-Wno-narrowing`(游戏代码在 gcc 下需要它)
-4. 构建。预期会出现大量 `undefined reference to IMG_Load / Mix_ / TTF_`
-5. **两种走法**(按你想要的进度选):
-   - **快路**:先编 SDL_image(只要它),让贴图能加载;声音/文字先 stub 掉
-   - **完整路**:依次把 SDL_image / SDL_mixer / SDL_ttf 都用 `add_subdirectory` 加进来
-6. 如果编译报 C++ 语法错(比如 `narrowing`),先看 `-Wno-narrowing` 是否生效
+3. `app/app/jni/CMakeLists.txt` 增加两个 `add_subdirectory`(SDL_image / SDL_mixer)
+4. 新增 **两个辅助目录**(都在 `app/app/jni/` 下,会进版本库):
+   - `sdl_ttf_stub/` —— SDL_ttf 占位实现(头 + 5 个函数)
+   - `include/SDL2/SDL_{image,mixer}.h` —— 转发头
 
-**预判的编译雷区**(从代码风格看):
-- 用了 C++17 的 lambda 初始化 (`inline vector<KeyCode> v = []{...}()`),必须真的开 `-std=c++17`
-- `using namespace std;` 在头文件里 → 容易和 NDK 的符号冲突,如有重定义错误优先怀疑这里
+#### 关键发现 1:PNG 和 OGG 都不需要外部依赖
 
-### 5.4 快速定位「资源缺失」类崩溃
+| 库 | 选项 | 效果 |
+|---|---|---|
+| SDL_image 2.8.8 | `SDL2IMAGE_BACKEND_STB` 默认 ON | PNG/JPEG 用 **stb_image**,不用编 libpng |
+| SDL_mixer 2.8.1 | `SDL2MIXER_VORBIS` 默认 `STB` | OGG 用 **stb_vorbis**,不用编 libogg/libvorbis |
+
+源码树里这两个单头文件都自带:`SDL_image/src/stb_image.h`、`SDL_mixer/src/codecs/stb_vorbis/stb_vorbis.h`。
+
+#### 关键发现 2:`Mix_LoadWAV` 能加载 .ogg(但不能省 OGG 后端)
+
+代码里音效全是 `.ogg` 却调 `Mix_LoadWAV()`,看起来像 bug,实际不是:
+`Mix_LoadWAV_RW()` 读完前 4 字节后,非 `RIFF/WAVE` 会 fallback 到 `Mix_LoadMusic_RW()`
+(`SDL_mixer/src/mixer.c:836`)。所以 **OGG 后端必须编进去**,否则返回 NULL。
+
+#### 踩到的两个编译错误
+
+| 报错 | 原因 | 修法 |
+|---|---|---|
+| `No cmake project for ogg found in external/ogg` | `SDL2MIXER_VENDORED` 默认开,要找 external/libogg | 传 `-DSDL2MIXER_VENDORED=OFF` 并关掉不用的编解码器(见 build.gradle)|
+| `'SDL2/SDL_mixer.h' file not found` | 库里头文件是 `include/SDL_mixer.h`,游戏 include 带 `SDL2/` 前缀 | 加一层转发头 + `-I{here}/../include` |
+
+#### 构建结果
+
+```
+BUILD SUCCESSFUL in 2m 25s
+app-debug.apk                     2.8 MB
+  arm64-v8a/libmain.so            715 KB   ← 游戏代码
+  arm64-v8a/libSDL2.so            2.0 MB
+  arm64-v8a/libSDL2_image.so      288 KB
+  arm64-v8a/libSDL2_mixer.so      219 KB
+  armeabi-v7a/libmain.so          388 KB   ← 你的电视用这个
+  armeabi-v7a/libSDL2*.so         …
+```
+
+**无 undefined reference**,说明 IMG_*/TTF_*/Mix_* 都链上了。
+
+#### 【重要】现在装上会崩,原因是缺资源
+
+`engine/interactive_component.h:22` 在菜单项构造时就 `preload(sound)`:
+
+```
+Mix_LoadWAV("sounds/menu_item_selected.ogg") → 文件不存在 → NULL
+  → sdl_sound_manager.cpp:124 throw Error("Failed to load sound: ...")
+  → 未捕获异常 → 启动即退出
+```
+
+**所以阶段 C 只能验证「编得过」,要看到画面必须先完成阶段 D(资源)。**
+
+### 5.5 快速定位「资源缺失」类崩溃
 
 ```sh
 grep -rn "resources/" game/src/ | head -40
@@ -951,9 +1015,19 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 [✓] 资源目录真相:                    Makefile 只拷 textures/texture.png、font/kongtext.ttf、
                                       stages、sounds 到运行目录。
                                       ⚠️ resources/img/ 根本没被使用(游戏用单张图集切图)
-[ ] IMG_Load 调用处数量:              待查
-[ ] TTF_ 调用处:                      待查
-[ ] Mix_ 调用处:                      待查
+[✓] IMG_Load 调用处数量:              3 处,全在 sdl_renderer.cpp
+                                      IMG_Init(IMG_INIT_PNG) / IMG_LoadTexture / IMG_Quit
+[✓] TTF_ 调用处:                      5 处,全在 sdl_renderer.cpp
+                                      TTF_Init / TTF_OpenFont / TTF_RenderText_Solid
+                                      TTF_CloseFont / TTF_Quit
+                                      → 全部有判空,所以 stub 不会崩(只是没文字)
+[✓] Mix_ 调用处:                      9 个函数,全在 sdl_sound_manager.cpp
+                                      OpenAudio/CloseAudio/ChannelFinished/FreeChunk/
+                                      HaltChannel/LoadWAV/PlayChannel/VolumeChunk/GetError
+                                      ⚠️ Mix_LoadWAV 返回 NULL 会 throw(第 124 行)
+[✓] 音效格式:                         .ogg(Vorbis),但用 Mix_LoadWAV 加载
+                                      mixer.c:836 非 WAV 会 fallback 到 Mix_LoadMusic_RW
+                                      → OGG 后端必须开
 [ ] 写文件(高分)的方式:             待查(有 high_score.h / scores.cpp)
 [✓] 窗口逻辑分辨率:                   464 x 416
                                       map 26x26 tiles x 16px = 416x416,status 3x16 = 48px
