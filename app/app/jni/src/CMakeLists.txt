@@ -23,6 +23,8 @@ add_library(main SHARED)
 
 target_sources(main PRIVATE
     ${GAME_SOURCES}
+    # 阶段 D:chdir 的 JNI 胶水(android.system.Os 没有公开 chdir)
+    "${CMAKE_CURRENT_SOURCE_DIR}/android_glue.c"
     # SDL_ttf 占位实现(阶段 G 换成 stb_truetype)
     "${CMAKE_CURRENT_SOURCE_DIR}/../sdl_ttf_stub/src/sdl_ttf_stub.c"
 )
@@ -38,6 +40,8 @@ target_link_libraries(main
     SDL2
     SDL2_image
     SDL2_mixer
+    # android_glue.c 里用了 __android_log_print
+    log
 )
 
 set_target_properties(main PROPERTIES

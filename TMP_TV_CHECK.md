@@ -1,14 +1,20 @@
-# 装到电视后要确认 / 要发给我的东西
+# 装到电视后要确认 / 要发给我的东西(阶段 D 版)
 
-> 临时文件,阶段 B 验收完就可以删(或留作记录)。
+> 这份文件每次验收前更新。当前对应:**阶段 D(资源解包)**。
 > 目的:一次把该记录的信息收齐,别装完之后想不起来当时是什么现象。
 
 ---
 
 ## 0. 一句话背景
 
-现在这个 APK 是**阶段 B 的引导程序**,不是游戏。
-屏幕上应该只有**缓慢变色的蓝底**,没有坦克。这是正常的。
+现在这一版**已经是真正的游戏**了(资源已经打进 APK)。
+
+但还有两件事没做,属于**已知情况,不是 bug**:
+
+1. **文字全是空的**(菜单里的 `1 Player` / `2 Players` / `Exit` 不显示)—— 阶段 G
+2. **不能开火**(能开坦克、能移动,但按 OK 不放炮)—— 阶段 F
+
+声音应该已经有了(阶段 E 顺带验证)。
 
 ---
 
@@ -31,132 +37,164 @@ adb devices
 
 ```sh
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
-adb shell cmd package resolve-activity --brief com.zcc.tanktv
 ```
 
 - [ ] `install` 输出 `Success`
-- [ ] 电视首页能找到这个 app(图标是个坦克绿的方块,banner 上写着 TANK TV)
+- [ ] 电视首页能找到这个 app(名字「坦克大战」,banner 是 TANK TV)
 
-> 如果首页没有:先把 tv_banner 做出来这次已经加了 LEANBACK_LAUNCHER,
-> 理论上应该出现。若仍不出现,用这条直接启动:
-> `adb shell am start -n com.zcc.tanktv/org.libsdl.app.SDLActivity`
+> 如果首页没有,直接用这条启动(注意 activity 名变了):
+> `adb shell am start -n com.zcc.tanktv/com.zcc.tanktv.GameActivity`
 
 ---
 
 ## 3. 抓日志(最重要)
 
-**先清空,再启动,再操作**,这样日志干净:
+**先清空,再启动**,这样日志干净:
 
 ```sh
 adb logcat -c
-adb shell am start -n com.zcc.tanktv/org.libsdl.app.SDLActivity
-adb logcat | grep -iE "SDL|TankTv|KEYDOWN|KEYUP|AndroidRuntime"
+adb shell am start -n com.zcc.tanktv/com.zcc.tanktv.GameActivity
+adb logcat | grep -iE "TankTv|SDL|AndroidRuntime"
 ```
 
-### 需要确认的第一组:程序有没有真正跑起来
-
-- [ ] 看到 `=== TankTv bootstrap ===`
-- [ ] 看到 `SDL version: 2.32.4`
-- [ ] 看到 `renderer: OpenGL ES 2.0`  ← **这一行很关键**
-
-### 把下面这几条的实际内容发我
+### 3.1 必须看到的两行(有 `TankTv` 标签)
 
 ```
-=== TankTv bootstrap ===            ← 有 / 没有
-SDL version: ______                 ← 期望 2.32.4
-renderer: ______                    ← 期望 OpenGL ES 2.0(如果是 software 一定要告诉我)
+chdir -> /data/user/0/com.zcc.tanktv/files/assets
+resize helper: queued 1920x1080        ← 数字应该是你电视的分辨率
 ```
+
+- [ ] 有 `chdir ->`
+- [ ] 有 `resize helper: queued ____x____`
+
+这两行**任何一行没有**都要告诉我,它们分别代表:
+
+- 没有 `chdir` → 解包/切目录失败,资源读不到
+- 没有 `resize` → SDL 视频没起来,或者窗口没建成(画面会是小窗或黑屏)
+
+### 3.2 崩溃的话
+
+```
+AndroidRuntime: FATAL EXCEPTION ...
+```
+**把 `FATAL EXCEPTION` 到后面 20 行完整贴给我**(或者把整个 logcat 存文件发我)。
+
+### 3.3 顺便记一下第一行解包耗时
+
+第一次启动要解 62 个文件(708KB),应该 1 秒内完成。日志里会有:
+
+```
+extracting assets -> /data/user/0/com.zcc.tanktv/files/assets
+extract done
+```
+
+之后每次启动会跳过(有 `.extracted_version` 标记)。
 
 ---
 
 ## 4. 屏幕现象(肉眼确认)
 
-- [ ] 蓝底在**缓慢变化颜色**(说明在逐帧刷新,不是卡死的一张图)
-- [ ] 是**全屏**,没有黑边、没有被切掉一部分
-- [ ] 没有任何弹窗 / 报错框
+### 4.1 主菜单
 
-如果蓝底不动了、或者黑屏:
+- [ ] 黑底
+- [ ] 中间偏上有 **TANKS** 大字 LOGO(不是模糊的方块)
+- [ ] LOGO 下面有个**坦克图标**,按上/下方向键会换位置(有 3 个位置循环)
+- [ ] 没有文字(正常,阶段 G)
 
-- 黑屏但日志正常 → 可能只是渲染没刷新,告诉我
-- 直接崩回桌面 → 日志里会有 `AndroidRuntime: FATAL`,**把那段完整贴我**
+### 4.2 进关卡
 
----
+按 **OK**(遥控器中间的确认键):
 
-## 5. 遥控器按键(阶段 F 要用的数据)
+- [ ] 屏幕变成**灰色背景**(这是选关页)
+- [ ] 什么都看不到,只有灰底(正常:数字是文字,还没做)
+- [ ] 再按一次 **OK** → 进入第 1 关
 
-**在蓝底界面上,用遥控器依次按**:
+> 选关页默认就是第 1 关,直接按 OK 即可。左右键可以改关卡号(但看不到数字)。
 
-1. 上
-2. 下
-3. 左
-4. 右
-5. OK / 确定 / 中间的圆键
-6. 返回
+### 4.3 关卡里
 
-每按一次,日志会打两行左右,形如:
+- [ ] 能看到**砖墙 / 钢墙 / 老鹰基地**
+- [ ] 能看到自己的坦克(底部中间偏左)
+- [ ] 敌方坦克会从上方出来
+- [ ] 方向键能开自己的坦克
+- [ ] **按 OK 不开火**(正常,阶段 F)
 
-```
-KEYDOWN scancode=82 sym=1073741906
-KEYUP   scancode=82 sym=1073741906
-```
+### 4.4 缩放是否正确(重点看这个)
 
-### 把下面这张表填好发我(照抄日志里的数字)
+- [ ] 游戏画面是**居中的、等比放大的**,左右有黑边(letterbox)
+- [ ] **不是**挤在左上角的小方块
 
-| 按了什么 | scancode | sym |
-|---|---|---|
-| 上 | | |
-| 下 | | |
-| 左 | | |
-| 右 | | |
-| **OK / 确定** | | |
-| 返回 | | |
-
-**为什么重要**:游戏里玩家1开火键是「右 Ctrl」(`KEY_RCTRL`)。遥控器的 OK 键肯定不是这个,
-到时候要在代码里把遥控器 OK 映射成开火。没有这张表就得盲猜。
-
-> 如果按了没反应(日志完全没新增),也告诉我 —— 说明 SDL 没收到按键事件,
-> 那是另一个要解决的问题(可能要改 SDLActivity 的按键转发)。
+如果看到的是左上角一小块(464×416 原始尺寸),告诉我 ——
+说明补发 RESIZED 事件那一步没生效,我再改。
 
 ---
 
-## 6. 顺带确认(可选但有用)
+## 5. 声音
 
-- [ ] 电视的 Android 版本(`adb shell getprop ro.build.version.release`)
-- [ ] CPU 架构(`adb shell getprop ro.product.cpu.abi`)→ 期望 `arm64-v8a`
-- [ ] 品牌型号(`adb shell getprop ro.product.model`)
+- [ ] 进菜单/切菜单项有「哔」声
+- [ ] 进关卡有开场音效
+- [ ] 开炮应该有声音(但你现在没法开火,这条先跳过)
 
-如果 `ro.product.cpu.abi` **不是** `arm64-v8a`(比如是 `armeabi-v7a`),
-说明我编的包装不上 —— 立刻告诉我,我把 ABI 补上重编。
+完全没声音也先告诉我 —— 可能是 `Mix_OpenAudio` 在电视上没起来,
+下一轮我用 logcat 查。
 
 ---
 
-## 7. 一句话总结模板(直接复制这段填完发我)
+## 6. 需要发我的内容(直接复制这段填)
 
 ```
 装上了:是/否
 首页能看到图标:是/否
-日志三条:
-  bootstrap 行:有/没有
-  SDL version:
-  renderer:
-画面:蓝底在变色 / 黑屏 / 崩溃
-崩溃的话日志:
-按键表:
-  上=/ 下=/ 左=/ 右=/ OK=/ 返回=
+
+日志:
+  chdir 行:有/没有,内容是:
+  resize 行:有/没有,内容是:
+  extract done:有/没有
+崩溃(有就贴 FATAL 那一段):
+
+画面:
+  主菜单有 TANKS LOGO:是/否
+  坦克光标能上下移动:是/否
+  能进第 1 关:是/否
+  能看到砖墙/坦克:是/否
+  坦克能用方向键开:是/否
+  画面是居中放大(有黑边):是/否
+  画面是左上角小方块:是/否
+
+声音:有/无
+
 电视:Android 版本 / abi / 型号
+  (adb shell getprop ro.build.version.release)
+  (adb shell getprop ro.product.cpu.abi)
+  (adb shell getprop ro.product.model)
+
 额外问题(有就说):
 ```
 
 ---
 
-## 附:卸载 / 重装
+## 7. 如果画面位置不对,顺手抓一张截图
+
+```sh
+adb shell screencap -p /sdcard/tank.png
+adb pull /sdcard/tank.png .
+```
+
+把 `tank.png` 发我,比文字描述快得多。
+
+---
+
+## 附:常用命令
 
 ```sh
 # 重装(覆盖)
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 
-# 卸载
+# 卸载(想完全重来一次解包时用)
 adb uninstall com.zcc.tanktv
+
+# 只清应用数据(会重新走一遍解包)
+adb shell pm clear com.zcc.tanktv
 
 # 断开电视
 adb disconnect

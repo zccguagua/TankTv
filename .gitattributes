@@ -1,0 +1,3 @@
+# 关卡文件是游戏按字节解析的地图文本(26x26),
+# 禁止 git 做换行转换,否则换台机器 checkout 出 CRLF 就字节不一致了。
+app/app/src/main/assets/stages/* -text

@@ -10,7 +10,7 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-05**(阶段 C 完成:34 个游戏源文件已编入,双 ABI 构建通过)
+最近更新:**2026-11-05**(阶段 D 完成:资源进 APK、启动解包、chdir、等比缩放已就绪,待上电视验证)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
@@ -18,16 +18,23 @@
 | A 桌面基线 | ⏭️ **跳过** | 非必需,直接进 Android |
 | B 模板 APK | ✅ **完成**(已上电视验证) | 渐变画面正常,`renderer: OpenGL ES 2.0`;电视是 `armeabi-v7a` |
 | C 接入游戏源码 | ✅ **完成** | APK 2.8MB;`libmain.so` 715KB(arm64)/ 388KB(v7a);无 undefined symbol |
-| D 资源解包 | ⬜ **下一步** | ← 不做这步,装上就崩 |
-| E 声音 | ⬜ 未开始 | 库已编进去(SDL_mixer + stb_vorbis),只差资源 |
-| F 输入 | ⬜ 未开始 | 遥控器映射已知:OK=Enter(40),返回=Escape(41) |
+| D 资源解包 | ✅ **完成**(待上电视验证) | APK 3.5MB;62 个 assets;`GameActivity` 解包+`chdir`;修了 `SDL_main` 入口和缩放竞态 |
+| E 声音 | ⬜ 未开始 | 库已编进去(SDL_mixer + stb_vorbis),资源已就位,只剩验证 |
+| F 输入 | ⬜ **下一步** | 遥控器映射已知:OK=Enter(40),返回=Escape(41);开火键需补(见 8.2) |
 | G 文字 | ⬜ 未开始 | 现在用 stub,文字不显示 |
 | H/I/J 收尾 | ⬜ 未开始 | — |
 
-**下一步要做的第一件事**:阶段 D(资源解包)。
-⚠️ **目前装上去会在启动时崩溃**:菜单项构造时会 `preload()` 音效,
-`sounds/*.ogg` 不存在 → `Mix_LoadWAV` 返回 NULL → 抛异常。
-所以 C 只能验证「编得过」,要看到画面必须先做 D。
+**下一步要做的第一件事**:把 `app-debug.apk` 装到电视,按 `TMP_TV_CHECK.md` 逐项确认。
+
+阶段 D 之后屏幕应该长这样(文字还是空的,正常):
+
+1. 黑色背景中间有 **TANKS 字样的大 LOGO**(来自 `texture.png` 图集)→ 说明贴图加载成功
+2. LOGO 下面一个**坦克光标**(上下按方向键会移动)→ 说明遥控器事件通了
+3. 按 **OK** 进选关,再按 **OK** 从第 1 关开始
+4. 进关卡后能看到地图/砖墙/坦克 → 说明关卡文件也读到了
+
+> ⚠️ 现在**还不能开火**:游戏 P1 的开火键写死是右 Ctrl(`KEY_RCTRL`),
+> 遥控器 OK 是 Enter。这件事排在阶段 F。
 
 > ⚠️ **本机的三个环境坑(已经在下面 B.2 记录,换机前务必先看)**:
 >
@@ -767,8 +774,12 @@ public class GameActivity extends SDLActivity {
 改 `app/app/src/main/AndroidManifest.xml`,把 Activity 从 `SDLActivity` 改成你自己这个:
 
 ```xml
-<activity android:name=".GameActivity" ... >
+<activity android:name="com.zcc.tanktv.GameActivity" ... >
 ```
+
+> ⚠️ **必须写全限定名**,不能写 `.GameActivity`。
+> 因为 `app/app/build.gradle` 里的 `namespace "org.libsdl.app"` 没改(SDL 的 Java 代码靠它),
+> 写 `.GameActivity` 会被解析成 `org.libsdl.app.GameActivity` 而找不到类。
 
 ### 6.3 native 侧切目录
 
@@ -797,6 +808,159 @@ public class GameActivity extends SDLActivity {
 ### 6.4 验收
 
 启动后:**能看到地图、坦克、砖墙**。文字可能是空白方块(阶段 G),没有声音(阶段 E)。
+
+### 6.5 ✅ 阶段 D 实施记录(2026-11-05 已完成构建,待上电视)
+
+> ⚠️ **实际实现和上面 6.1~6.3 的草案不一样**,以本节为准。
+> 差别只有两处:解包目标是 `filesDir/assets`(多一层目录),`chdir` 不在游戏代码里改。
+
+#### 6.5.1 实际做了什么(文件清单)
+
+| 文件 | 动作 |
+|---|---|
+| `app/app/src/main/assets/` | **新增**,62 个文件共 708KB。**已进版本库**,换电脑不用重拷 |
+| `app/app/src/main/java/com/zcc/tanktv/GameActivity.java` | **新增**,解包 + chdir + 覆盖 `getMainFunction()` |
+| `app/app/jni/src/android_glue.c` | **新增**,JNI `chdir` + 补发一次 RESIZED 事件 |
+| `app/app/jni/src/CMakeLists.txt` | 加 `android_glue.c` 到 `target_sources`;`target_link_libraries` 加 `log` |
+| `app/app/src/main/AndroidManifest.xml` | `android:name="SDLActivity"` → `"com.zcc.tanktv.GameActivity"`(全限定名) |
+
+资源进版本库的好处:**换电脑只 `git pull` 就有资源**,不用再跑 6.1 那三条 `cp`。
+
+#### 6.5.2 解包 + 切目录的顺序(照抄就能用)
+
+```java
+protected void onCreate(Bundle savedInstanceState) {
+    File dir = prepareAssets();      // 1. 解到 filesDir/assets(只用到 Context,可以放 super 之前)
+    super.onCreate(savedInstanceState);  // 2. 这一步才 System.loadLibrary("SDL2"/"main")
+    nativeChdir(dir.getAbsolutePath());  // 3. 必须在这里调:nativeChdir 在 libmain.so 里
+}
+```
+
+**为什么 `chdir` 可以放在 `onCreate` 里**:游戏 `main()` 跑在 SDL 自己的线程上,
+而那个线程要到**首次 `onResume` + surface 就绪 + 有焦点**时才创建
+(`SDLActivity.handleNativeState()` 里 `new Thread(new SDLMain())`)。
+`onCreate` 一定早于它。
+
+**幂等**:解包目录里写 `.extracted_version`(内容是 `ASSETS_VERSION`),版本对上就跳过。
+以后改 assets 就把 `ASSETS_VERSION` +1。
+
+#### 6.5.3 【坑 1】`android.system.Os` 没有 `chdir`
+
+```
+错误: 找不到符号  方法 chdir(String)  位置: 类 Os
+```
+
+`android.system.Os` 里有一堆 `open/stat/mkdir/unlink…`,**就是没有 `chdir`**
+(libcore 里那个 `Libcore.os.chdir` 是隐藏 API)。所以必须自己写 JNI:
+
+```c
+JNIEXPORT jboolean JNICALL
+Java_com_zcc_tanktv_GameActivity_nativeChdir(JNIEnv *env, jclass clazz, jstring path)
+{
+    const char *c_path = (*env)->GetStringUTFChars(env, path, NULL);
+    int rc = chdir(c_path);
+    (*env)->ReleaseStringUTFChars(env, path, c_path);
+    return rc == 0 ? JNI_TRUE : JNI_FALSE;
+}
+```
+
+JNI 里用了 `__android_log_print`,所以 **`target_link_libraries` 必须加 `log`**,
+否则报 `undefined symbol: __android_log_print`。
+
+#### 6.5.4 【坑 2,致命】SDL 找的是 `SDL_main`,上游只导出 `main`
+
+这一条如果没修,**装上去就是黑屏/闪退**,而且日志里只有一句
+`SDL_main not found` 之类的话,很容易误判成别的问题。
+
+- SDL 的 Java 侧:`SDLActivity.getMainFunction()` 默认返回 `"SDL_main"`
+- native 侧:`SDL_android.c` 里 `dlsym(libmain.so, "SDL_main")`
+- 上游 `game/src/main.cpp` **没有** `#include <SDL.h>`,所以 `SDL_main.h` 里的
+  `#define main SDL_main` 不生效 → 导出的符号名叫 **`main`**
+
+实测确认:
+
+```sh
+# 只有 main,没有 SDL_main
+llvm-nm -D --defined-only .../libmain.so | grep -E "main$"
+0004e9f4 T main
+```
+
+**修法(不改上游代码)**:在 `GameActivity` 里覆盖一行:
+
+```java
+@Override
+protected String getMainFunction() {
+    return "main";
+}
+```
+
+> 备选方案(没采用):加一个 `extern "C" int SDL_main(...)` 的包装文件,
+> 但那样等于把 `main.cpp` 的内容复制一份,上游一改就要跟着改。
+> 覆盖 `getMainFunction()` 更少、更稳。
+
+#### 6.5.5 【坑 3,影响观感】缩放靠一条「可能拿不到」的事件
+
+游戏靠 `SDLRenderer::setViewportForWindowSize()` 做等比缩放 + 居中,
+而它**只在**收到 WINDOW 的 `RESIZED/MAXIMIZED/RESTORED/SHOWN` 时才被调用。
+
+- `SHOWN` 事件带的是 `data1 = data2 = 0`(`SDL_video.c:2549` 就是这么发的)
+  → 游戏里 `width <= 0` 直接 return,等于没用
+- 真正有用的是 `RESIZED`,它来自 Java `surfaceChanged` → `onNativeResize`
+- 但 `onNativeResize` 里有一句 `if (Android_Window)`,
+  而那一刻游戏侧窗口经常**还没创建** → 事件被丢掉,之后也不会补
+
+结果:渲染 scale 永远是 1,画面按 464×416 原尺寸画在**左上角**。
+
+**修法**:`android_glue.c` 里起一个 pthread,等 `SDL_WasInit(SDL_INIT_VIDEO)` 为真、
+`SDL_GetWindowFromID(1)` 拿到窗口后,把**真实的 surface 尺寸**塞一个 `RESIZED` 事件进队列:
+
+```c
+event.type = SDL_WINDOWEVENT;
+event.window.event = SDL_WINDOWEVENT_RESIZED;
+event.window.data1 = w;   // SDL_GetWindowSize 拿到的就是真实尺寸
+SDL_PushEvent(&event);
+```
+
+游戏自己 poll 到就会算好缩放,上游代码零改动。
+
+> 顺带搞清楚了一件事:`SDL_RenderSetViewport()` 传进去的 rect 会被 **乘以 scale**
+> (`SDL_render.c:2487`),也就是 viewport 用的是**逻辑坐标**。
+> 所以游戏里 `viewport.x = (width / scale - base.w) / 2` 的算法是对的,
+> 464×416 在 1920×1080 上会算出 scale≈2.596、左右各留 ≈358px,是标准 letterbox。
+
+**调试用日志**(logcat 里 grep `TankTv`):
+
+```
+chdir -> /data/user/0/com.zcc.tanktv/files/assets
+resize helper: queued 1920x1080     ← 有这行说明 SDL 起来了、窗口也建了
+```
+
+#### 6.5.6 构建结果
+
+```
+BUILD SUCCESSFUL in 17s
+app-debug.apk                     3.5 MB
+assets/                          62 个文件(texture.png / kongtext.ttf / stages/0..35 / sounds/*.ogg)
+arm64-v8a/libmain.so             716 KB
+armeabi-v7a/libmain.so           388 KB     ← 你的电视用这个
+```
+
+导出的 JNI 与入口符号(实测):
+
+```
+T Java_com_zcc_tanktv_GameActivity_nativeChdir
+T main
+```
+
+#### 6.5.7 装上后应该看到什么
+
+| 画面 | 说明 |
+|---|---|
+| 黑底 + 中间 **TANKS** 大字 LOGO | `texture.png` 加载成功 |
+| LOGO 下一个**坦克光标**,上下键能移动 | 遥控器事件通了(菜单项文字是空的,阶段 G 才有) |
+| 按 **OK** → 灰底选关页(数字是空的),再按 **OK** | 进入第 1 关(`m_selected_stage` 默认 1) |
+| 关卡里有砖墙、老鹰、坦克 | `stages/1` 读到了 |
+| 坦克能动,**但不能开火** | 开火键是右 Ctrl,阶段 F 才映射遥控器 OK |
 
 ---
 
@@ -993,8 +1157,12 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 | `SDL2 not found` | `SDL2_SOURCE_DIR` 路径错 | 回到 4.3,逐层 ls 验证 |
 | `undefined reference to IMG_Load` | 还没加 SDL2_image | 预期,先看别的错 |
 | `undefined symbol: TTF_Init` | 还没做阶段 G(文字) | 预期,先放着 |
+| `undefined symbol: __android_log_print` | `android_glue.c` 用了 log,但没 `target_link_libraries(... log)` | 加 `log`(见 6.5.3) |
+| `找不到符号: 方法 chdir(String) 位置: 类 Os` | `android.system.Os` 没有 `chdir` | 用 JNI,见 6.5.3 |
+| 启动黑屏/退出,日志提到 `SDL_main` | 上游只导出 `main` | 覆盖 `getMainFunction()` 返回 `"main"`,见 6.5.4 |
+| 画面是左上角一小块 | 没收到 RESIZED 事件,scale 一直是 1 | 补发事件,见 6.5.5 |
 | 启动即闪退,`AndroidRuntime: FATAL` | Java 侧异常 | `adb logcat -s AndroidRuntime` 看首行异常 |
-| 黑屏但进程活着 | `SDL_main` 没接对 / 没进主循环 | 在 main 里 `SDL_Log("alive")` 打点 |
+| 黑屏但进程活着 | `SDL_main` 没接对 / 没进主循环 | 见 6.5.4;再在 main 里 `SDL_Log("alive")` 打点 |
 | 一堆 `Could not load resources/...` | 阶段 D 没做或 chdir 没生效 | 打 `getcwd` 日志 |
 | 中文/空格路径报奇怪错 | NDK 路径限制 | 项目挪到纯 ASCII 路径 |
 | `libmain.so` 找不到 | CMake target 名与 Java 里 `getLibraries()` 不一致 | 两处对齐 |
@@ -1037,13 +1205,18 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 [✓] 游戏完整度:                       stages_count = 35,每关 20 敌人(完整版)
 [✓] APK 包名:                         com.zcc.tanktv(旧: com.example.tanktv)
 [✓] Java 内 SDL 库名列表:            "SDL2", "main"(模板默认)
-[ ] 遥控器方向键/OK 的 scancode:      需上设备后从 logcat 抄(引导程序已埋日志)
+[✓] 遥控器方向键/OK 的 scancode:      见 2B.8 的按键表(已实测:OK=Enter 40、返回=Escape 41)
+[✓] 上游 main() 导出的符号:           只有 `main`,**没有** `SDL_main`
+                                      (main.cpp 没 include SDL.h)
+                                      → 必须覆盖 GameActivity.getMainFunction()
+[✓] Android 上缩放靠的事件:            RESIZED,来自 Java surfaceChanged->onNativeResize,
+                                      和游戏建窗有竞态 → 需要在 native 侧补发一次(见 6.5.5)
 [ ] Makefile 实际链接库:             SDL2main SDL2 SDL2_image SDL2_ttf SDL2_mixer
 ```
 
 > **对阶段 D 的影响(重要)**:解包后的目录结构应该是
 > ```
-> <internal>/              ← chdir 到这里
+> <internal>/assets/        ← 实际实现是 filesDir/assets,chdir 到这里
 > ├── texture.png          ← 来自 resources/textures/texture.png
 > ├── kongtext.ttf         ← 来自 resources/font/kongtext.ttf
 > ├── stages/0..35         ← 原样
@@ -1103,6 +1276,7 @@ git add -A && git commit -m "阶段 C: 游戏源码已编入,可启动(无资源
 
 ```sh
 # 注意:third_party/ 与 game/ 被 .gitignore 排除了,clone 下来只有 35 个文件(约 200KB)
+# 但 app/app/src/main/assets/(62 个资源文件)是进版本库的,不用重拷
 git clone https://github.com/zccguagua/TankTv.git
 cd TankTv
 
@@ -1127,11 +1301,22 @@ ls third_party/SDL/CMakeLists.txt   # SDL 在
 ls app/app/jni/CMakeLists.txt       # 工程在
 
 # 4. 直接重建一次,看是不是还是 SUCCESSFUL(增量构建约 20~30 秒)
+#    ⚠️ 必须带 -PndkPath,否则会用 build.gradle 里另一台机器的默认路径
 cd app
-/d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon --console=plain | tail -5
+/d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon --console=plain \
+  -PndkPath=D:/Sdk/ndk/android-ndk-r26d | tail -5
 ```
 
-只要第 4 步是 `BUILD SUCCESSFUL`,就可以直接接阶段 C。
+只要第 4 步是 `BUILD SUCCESSFUL`,就可以接**阶段 F(遥控器开火键)**。
+
+> 代理坑:`D:/.gradle/gradle.properties` 里写死的 `127.0.0.1:7890` 代理没开时,
+> Gradle 会报 `Connection refused`。要么启动代理工具,要么临时把它挪走:
+> ```sh
+> cp /d/.gradle/gradle.properties /d/.gradle/gradle.properties.bak
+> : > /d/.gradle/gradle.properties
+> # …构建…
+> cp /d/.gradle/gradle.properties.bak /d/.gradle/gradle.properties
+> ```
 
 > 如果换的是**全新的机器**,依赖需要重新准备:
 > 1. 装 JDK 17 + SDK(platform 34)+ NDK r26d + CMake 3.22.1

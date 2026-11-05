@@ -70,7 +70,9 @@
         <meta-data android:name="SDL_ENV.SDL_ACCELEROMETER_AS_JOYSTICK" android:value="0"/>
          -->
      
-        <activity android:name="SDLActivity"
+        <!-- 阶段 D:自定义 Activity,负责解包 assets + chdir。
+             它在 namespace(org.libsdl.app)之外,必须写全限定名。 -->
+        <activity android:name="com.zcc.tanktv.GameActivity"
             android:label="@string/app_name"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleInstance"

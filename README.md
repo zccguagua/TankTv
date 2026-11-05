@@ -6,6 +6,9 @@
 本仓库负责把它包成能在 Android TV 上用遥控器玩的 APK。
 
 > 本项目**不包含**游戏源码,也不包含 SDL2 源码 —— 两者都在 `.gitignore` 里,需要按下面步骤自行获取。
+>
+> 但**游戏运行需要的资源(texture.png / 字体 / 关卡 / 音效)已经放在
+> `app/app/src/main/assets/` 并纳入版本库**(约 708KB),换电脑不用重新拷。
 
 ---
 
@@ -15,10 +18,10 @@
 |---|---|---|
 | 0 | 环境(SDK/NDK/CMake) | ✅ 完成 |
 | B | SDL2 模板跑出 APK | ✅ 完成(已能在电视显示渐变画面) |
-| C | 接入游戏源码 | ⬜ 进行中 |
-| D | 资源解包 | ⬜ |
-| E | 声音 | ⬜ |
-| F | 遥控器 / 触摸输入 | ⬜ |
+| C | 接入游戏源码 | ✅ 完成 |
+| D | 资源解包 | ✅ 完成(待实机验证) |
+| E | 声音 | ⬜ 验证即可 |
+| F | 遥控器 / 触摸输入 | ⬜ **下一步** |
 | G | 文字渲染 | ⬜ |
 | H–J | 存档 / 缩放 / TV 打包 | ⬜ |
 
@@ -107,7 +110,7 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 | NDK | r26d(或 r27) |
 | CMake | 3.22.1 |
 | Gradle | 8.1.1 |
-| 设备 | arm64-v8a 的 Android TV / 盒子 |
+| 设备 | Android TV / 盒子(APK 同时带 `arm64-v8a` 和 `armeabi-v7a`) |
 
 ---
 
