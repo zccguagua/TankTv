@@ -3,6 +3,7 @@ package com.zcc.tanktv;
 import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.KeyEvent;
 
 import org.libsdl.app.SDLActivity;
 
@@ -57,6 +58,67 @@ public class GameActivity extends SDLActivity {
     @Override
     protected String getMainFunction() {
         return "main";
+    }
+
+    /**
+     * 阶段 F:把遥控器上的「空闲键」统一映射成开火。
+     *
+     * 游戏玩家 1 的开火键写死是右 Ctrl(KeyCode::KEY_RCTRL),遥控器没有这个键。
+     * 而遥控器的 OK 键 = 回车 = 游戏里的「暂停」,不能拿来开火。
+     *
+     * 之所以在 Java 层拦、而不是在 SDL 事件过滤器里拦:SDL 的 Android 键表会把
+     * 频道±、彩色键这类键映射成 SDL_SCANCODE_UNKNOWN,然后在 SDL_SendKeyboardKey
+     * 里直接丢掉(不发事件)。在这里用原始 Android keycode 拦截,才能覆盖到这些键。
+     *
+     * 映射成 KEYCODE_CTRL_RIGHT(Android 114)后,SDL 会把它译成 SDL_SCANCODE_RCTRL,
+     * 正好就是游戏的开火键。
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (isFireSourceKey(keyCode)) {
+            int action = event.getAction();
+            if (action == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) {
+                    Log.i(TAG, "fire key: " + keyCode + " -> KEYCODE_CTRL_RIGHT");
+                }
+                SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_CTRL_RIGHT);
+                return true;
+            } else if (action == KeyEvent.ACTION_UP) {
+                SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_CTRL_RIGHT);
+                return true;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    /**
+     * 可当开火键的空闲键。覆盖常见 Android TV 遥控器的菜单/频道/彩色/媒体键,
+     * 保证换一台没有「菜单」键的电视也能开火。
+     */
+    private static boolean isFireSourceKey(int keyCode) {
+        switch (keyCode) {
+            case KeyEvent.KEYCODE_MENU:                  // 82  菜单
+            case KeyEvent.KEYCODE_CHANNEL_UP:            // 166 频道+
+            case KeyEvent.KEYCODE_CHANNEL_DOWN:          // 167 频道-
+            case KeyEvent.KEYCODE_PROG_RED:              // 183 红
+            case KeyEvent.KEYCODE_PROG_GREEN:            // 184 绿
+            case KeyEvent.KEYCODE_PROG_YELLOW:           // 185 黄
+            case KeyEvent.KEYCODE_PROG_BLUE:             // 186 蓝
+            case KeyEvent.KEYCODE_GUIDE:                 // 172 节目指南
+            case KeyEvent.KEYCODE_INFO:                  // 165 信息
+            case KeyEvent.KEYCODE_SETTINGS:              // 176 设置
+            case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:      // 85  播放/暂停
+            case KeyEvent.KEYCODE_MEDIA_STOP:            // 86  停止
+            case KeyEvent.KEYCODE_BOOKMARK:              // 174 收藏
+            case KeyEvent.KEYCODE_CAPTIONS:              // 175 字幕
+            case KeyEvent.KEYCODE_DVR:                   // 173 录制
+            case KeyEvent.KEYCODE_TV_CONTENTS_MENU:      // 256 内容菜单
+            case KeyEvent.KEYCODE_TV_MEDIA_CONTEXT_MENU: // 257 媒体上下文菜单
+                return true;
+            default:
+                return false;
+        }
     }
 
     /** 返回解包后的资源目录(也是游戏的 CWD) */
