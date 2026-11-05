@@ -20,7 +20,7 @@
 | C 接入游戏源码 | ✅ **完成** | APK 2.8MB;`libmain.so` 715KB(arm64)/ 388KB(v7a);无 undefined symbol |
 | D 资源解包 | ✅ **完成**(待上电视验证) | APK 3.5MB;62 个 assets;`GameActivity` 解包+`chdir`;修了 `SDL_main` 入口和缩放竞态 |
 | E 声音 | ⬜ 未开始 | 库已编进去(SDL_mixer + stb_vorbis),资源已就位,只剩验证 |
-| F 输入 | ⬜ **下一步** | 遥控器映射已知:OK=Enter(40),返回=Escape(41);开火键需补(见 8.2) |
+| F 输入 | ⬜ **下一步** | 完整方案已写进**第 8 节**。必须先做 8.2 的 F0 诊断(遥控器有哪些闲置键) |
 | G 文字 | ⬜ 未开始 | 现在用 stub,文字不显示 |
 | H/I/J 收尾 | ⬜ 未开始 | — |
 
@@ -34,7 +34,8 @@
 4. 进关卡后能看到地图/砖墙/坦克 → 说明关卡文件也读到了
 
 > ⚠️ 现在**还不能开火**:游戏 P1 的开火键写死是右 Ctrl(`KEY_RCTRL`),
-> 遥控器 OK 是 Enter。这件事排在阶段 F。
+> 遥控器 OK 是 Enter —— 而 Enter 在游戏里已经被占为「暂停」。
+> **阶段 F 的方案已经写好(第 8 节),包含 F0 诊断步骤和两种修法**,照着做即可。
 
 > ⚠️ **本机的三个环境坑(已经在下面 B.2 记录,换机前务必先看)**:
 >
@@ -995,44 +996,242 @@ target_link_libraries(main SDL2_mixer::SDL2_mixer)
 
 ## 8. 阶段 F:输入适配
 
-### 8.1 先查游戏用了哪些键
+> 状态:⬜ 未开始。本节是**已按源码核实过**的执行方案,换电脑后照做即可。
 
-```sh
-grep -rn "SDL_SCANCODE" game/src/ | sort -u
-cat game/src/engine/data/keycode.h          # ← 游戏自己的键位枚举,必看
-sed -n '1,120p' game/src/engine/sdl/sdl_event_mapper.h
+### 8.0 现状:哪些键已经能用
+
+阶段 B 已实测的映射(见 2B.8),**方向键和 OK 键本来就通**:
+
+| 遥控器键 | SDL | 游戏里读到的 KeyCode |
+|---|---|---|
+| 上/下/左/右 | `SCANCODE_UP/DOWN/LEFT/RIGHT` | `KEY_UP/DOWN/LEFT/RIGHT` |
+| OK / 确定 | `SCANCODE_RETURN`(scancode 40) | `KEY_RETURN` |
+| 返回 | `SCANCODE_ESCAPE`(scancode 41) | `KEY_ESCAPE` |
+
+但**这些键在游戏里分别管什么**,必须按源码看(已核实):
+
+| 位置 | 按键 | 作用 |
+|---|---|---|
+| `menu.cpp:114` | `RETURN` / `SPACE` | 开始游戏 |
+| `menu.cpp:126` | `ESCAPE` | 退出 app(`transiteToNullAndStop`) |
+| `stage_select.cpp:61` | `RETURN` / `SPACE` | 进关 |
+| `stage_select.cpp:65` | `ESCAPE` | 回主菜单 |
+| **`game_playing_state.cpp:45`** | **`RETURN`** | **暂停**(不是开火!) |
+| `game_playing_state.cpp:49` | `ESCAPE` | 回主菜单 |
+| `game_pause_state.cpp:34` | `RETURN` | 继续 |
+| `game_pause_state.cpp:38` | `ESCAPE` | 回主菜单 |
+| `player.cpp:20` | `player_1_keys[4]` = **`KEY_RCTRL`** | **开火** |
+| `player_alive_state.cpp:109` | `m_key_state_fire.pressed` | 按住就持续开火(受 `player_reload_time` 限速) |
+
+### 8.1 核心矛盾:为什么不能只改一行
+
+遥控器 OK = `KEY_RETURN`,而 `KEY_RETURN` 在游戏里**已经是暂停键**。
+如果直接把开火键改成 `KEY_RETURN`,就会出现「**每开一炮就暂停**」。
+
+而如果反过来把 `KEY_RETURN` 全局改写成开火键,菜单里的「OK = 开始」就没了。
+
+**结论:同一个物理键在不同状态下要干不同的事,单靠一个映射表做不到。**
+只有两条路:①给开火**另找一个物理键**;②**改游戏代码**里那几个分支。
+
+### 8.2 步骤 F0:先诊断遥控器(必做,5 分钟)
+
+目的:搞清楚两件事 —— ①游戏的「返回」现在是不是真的直接退出;②你的遥控器**还有哪些空闲按键**
+(很多电视遥控器有 `菜单`、`音量`、`频道`、彩色键,它们可能可以当开火键)。
+
+**改 `GameActivity.java`,加一个方法(只加日志,不改行为)**:
+
+```java
+@Override
+public boolean onKeyDown(int keyCode, android.view.KeyEvent event) {
+    Log.i(TAG, "raw key: " + keyCode + " (" + android.view.KeyEvent.keyCodeToString(keyCode)
+            + ") repeat=" + event.getRepeatCount());
+    return super.onKeyDown(keyCode, event);
+}
 ```
 
-记下:上/下/左/右/开火/暂停/确认 分别映射到哪个 `SDL_SCANCODE`。
-
-### 8.2 Android TV 遥控器(几乎零成本)
-
-SDL2 的 `SDLActivity` 会把 `AKEYCODE_DPAD_UP/DOWN/LEFT/RIGHT` 转成 `SDL_SCANCODE_UP/DOWN/LEFT/RIGHT`。TV 上大概率**直接能玩**。
-
-「OK 键」映射成哪个 scancode 各版本不同,先打日志确认:
+**同时在 `android_glue.c` 的事件过滤器里打 SDL 层的结果**(过滤器怎么装见 8.3):
 
 ```c
-case SDL_KEYDOWN:
-    SDL_Log("KEY scancode=%d keycode=%d", e.key.keysym.scancode, e.key.keysym.keycode);
+if (event->type == SDL_KEYDOWN || event->type == SDL_KEYUP) {
+    LOGI("sdl key: scancode=%d sym=%d type=%s",
+         event->key.keysym.scancode, event->key.keysym.sym,
+         event->type == SDL_KEYDOWN ? "down" : "up");
+}
 ```
 
-若 OK 没反应,在 `sdl_event_mapper.h` 里把 `SDL_SCANCODE_KP_ENTER` / `SDL_SCANCODE_RETURN` / `SDL_SCANCODE_SPACE` 都当作「确认」即可(用 `#ifdef __ANDROID__` 包住,不影响桌面版)。
+然后把遥控器上**每一个键都按一遍**,记成表:
 
-### 8.3 手机触摸(需要写代码)
+| 按了什么 | Android keycode | 名字 | SDL scancode | 能不能用 |
+|---|---|---|---|---|
+| 上 | | `KEYCODE_DPAD_UP` | | 移动 |
+| … | | | | |
 
-最小实现:用 SDL 自带的虚拟摇杆?没有。两种做法:
+> 判据:SDL scancode 是 `UNKNOWN`(0)的键,SDL 默认不会转成按键事件 ——
+> 但这种键反而**最适合当开火键**,因为不会和系统抢(见 8.3 的说明)。
 
-- **A. Java 覆盖层**(推荐,改动小):在 `GameActivity` 里加四个按钮 + 一个开火键,按下/抬起时调用 SDL 的
-  ```java
-  SDLActivity.onNativeKeyDown(android.view.KeyEvent.KEYCODE_DPAD_UP);
-  SDLActivity.onNativeKeyUp(android.view.KeyEvent.KEYCODE_DPAD_UP);
-  ```
-  等于「让触摸冒充遥控器」,native 侧零改动。
-- **B. native 侧读 `SDL_FINGERDOWN/UP`**,自己维护虚拟按键状态。更灵活,但要改 `sdl_event_mapper`。
+### 8.3 方案 A:找一个空闲键当开火(零改游戏代码,首选)
 
-> 方法名以你手上 SDL 版本的 `SDLActivity.java` 为准(搜 `onNativeKeyDown`)。
+原理:装一个 **SDL 事件过滤器**,在事件进队列之前把「那个空闲键」**原地改写**成
+`SCANCODE_RCTRL`(也就是游戏的 `KEY_RCTRL`)。
 
-**验收**:TV 遥控器打通一关;手机上能移动+开火。
+> 已验证可行:`SDL_PushEvent` 里过滤器拿到的是**可写的**事件指针
+> (`SDL_events.c:1180`:`SDL_EventOK.callback(SDL_EventOK.userdata, event)`),
+> 改完返回 1 即可。
+
+`android_glue.c` 里加:
+
+```c
+/* ← F0 诊断后,把这里换成实际那个空闲键的 scancode */
+#define FIRE_SOURCE_SCANCODE SDL_SCANCODE_MENU
+
+static int tanktv_event_filter(void *userdata, SDL_Event *event)
+{
+    (void) userdata;
+    if ((event->type == SDL_KEYDOWN || event->type == SDL_KEYUP) &&
+        event->key.keysym.scancode == FIRE_SOURCE_SCANCODE) {
+        event->key.keysym.scancode = SDL_SCANCODE_RCTRL;
+        event->key.keysym.sym      = SDLK_RCTRL;
+    }
+    return 1;
+}
+
+static void install_event_filter(void)
+{
+    SDL_SetEventFilter(tanktv_event_filter, NULL);
+    LOGI("event filter installed, fire key = scancode %d", FIRE_SOURCE_SCANCODE);
+}
+```
+
+装在已有的那个 helper 线程里(拿到 video 初始化之后):
+
+```c
+    /* send_initial_resize() 里,SDL_WasInit(SDL_INIT_VIDEO) 为真之后 */
+    install_event_filter();
+```
+
+**已知限制**:`音量 +/−` 这类键可能被系统/电视抢先处理,app 收不到;
+`频道 +/−`、彩色键、`菜单`键则通常能收到。所以 F0 一定要先测。
+
+### 8.4 方案 B(遥控器只有 方向/OK/返回 时):改游戏键位
+
+因为 `game/` 不进版本库(换机器要重新下载),所以**不能手工改**,
+必须写成**可重复执行的补丁脚本**,放在 `tools/patch_game_for_android.sh`。
+
+**打完补丁后的键位(目标)**:
+
+| 状态 | OK 键 | 返回键 |
+|---|---|---|
+| 主菜单 | 开始 | 退出 app |
+| 选关 | 进关 | 回主菜单 |
+| **游戏中** | **开火** | **暂停** |
+| 暂停 | 继续 | 回主菜单 |
+
+**具体改两处**:
+
+1. `game/src/appconfig.h`:`P1_FIRE_KEY` 从 `KeyCode::KEY_RCTRL` 改成 `KeyCode::KEY_RETURN`
+2. `game/src/app_state/game/game_playing_state.cpp`:
+   - **删掉** `else if (isPressed(KEY_RETURN)) → PauseState` 这个分支
+   - 把 `else if (isPressed(KEY_ESCAPE))` 的分支体从「回主菜单」改成 → `PauseState`
+   - (`PauseState` 里 `RETURN`=继续、`ESCAPE`=回主菜单,原样不动,正好对上)
+
+脚本骨架(幂等:打过就跳过;用 Git Bash 自带的 `perl` 做多行精确替换):
+
+```sh
+#!/bin/sh
+# 阶段 F:把键位改成 OK=开火 / 返回=暂停。可重复执行。
+set -e
+cd "$(dirname "$0")/.."
+
+GAME=game/src
+MARK='TankTv: android key mapping'
+
+# 1) 玩家1开火键:RCTRL -> RETURN
+if grep -q '^#define P1_FIRE_KEY KeyCode::KEY_RCTRL$' "$GAME/appconfig.h"; then
+  perl -0777 -pi -e 's/^#define P1_FIRE_KEY KeyCode::KEY_RCTRL$/\/\* TankTv: android key mapping \*\/\n#define P1_FIRE_KEY KeyCode::KEY_RETURN/m' "$GAME/appconfig.h"
+  echo "[patch] appconfig.h: P1_FIRE_KEY -> KEY_RETURN"
+fi
+
+# 2) 游戏中:回车不再暂停;返回改成暂停
+if grep -q "$MARK" "$GAME/app_state/game/game_playing_state.cpp"; then
+  echo "[skip ] game_playing_state.cpp 已打过补丁"
+else
+  perl -0777 -pi -e '
+    s/\s*else if \(event_key\.isPressed\(KEY_RETURN\)\)\s*\{\s*
+         transiteTo\(new Game::PauseState\(m_context\)\);\s*
+         \}\s*
+         else if \(event_key\.isPressed\(KEY_ESCAPE\)\)\s*\{\s*
+         m_context->transiteTo\(new Menu\([^;]*\);\s*
+         \}/
+         \/* TankTv: android key mapping *\/\n        else if (event_key.isPressed(KEY_ESCAPE))\n        {\n            transiteTo(new Game::PauseState(m_context));\n        }/x
+  ' "$GAME/app_state/game/game_playing_state.cpp"
+  echo "[patch] game_playing_state.cpp: RETURN 不再暂停,ESCAPE -> 暂停"
+fi
+
+# 3) 验收:两处标记都在
+grep -n "$MARK" "$GAME/appconfig.h" "$GAME/app_state/game/game_playing_state.cpp"
+```
+
+**什么时候跑**:`4.1 拉源码` 之后**立刻**跑一次(和 `cp` 资源是同一批动作)。
+
+**验收**:改完重新构建,进关卡后按 OK 能连续开炮(按住连发),按返回出现暂停画面;
+暂停画面按 OK 继续、按返回回主菜单。
+
+### 8.5 方案 C(可选,最舒服):接手柄
+
+TV 上插个 USB / 蓝牙手柄(SDL 手柄事件不会影响键盘路径):
+
+```c
+/* 手柄的 A 键 -> 键盘 RCTRL,其余键自己按需加 */
+static int tanktv_event_filter(void *userdata, SDL_Event *event)
+{
+    (void) userdata;
+    if (event->type == SDL_CONTROLLERBUTTONDOWN || event->type == SDL_CONTROLLERBUTTONUP) {
+        switch (event->cbutton.button) {
+        case SDL_CONTROLLER_BUTTON_A:
+        case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+            /* 手柄事件直接改写成键盘事件 */
+            event->type = (event->type == SDL_CONTROLLERBUTTONDOWN) ? SDL_KEYDOWN : SDL_KEYUP;
+            event->key.keysym.scancode = SDL_SCANCODE_RCTRL;
+            event->key.keysym.sym      = SDLK_RCTRL;
+            event->key.state           = (event->type == SDL_KEYDOWN) ? SDL_PRESSED : SDL_RELEASED;
+            break;
+        default:
+            break;
+        }
+    }
+    return 1;
+}
+```
+
+> 注意:改了 `event->type` 之后 `event->key` 里的 `windowID` / `repeat` / `keysym.mod`
+> 是旧值,游戏只读 `sym` / `state`,够用。手柄的十字键/摇杆不经过这里,
+> 要另做 `SDL_CONTROLLERAXISMOTION` 处理(先不做,遥控器才是主路径)。
+
+### 8.6 手机触摸(暂不做)
+
+如果以后要手机上玩,最小改法是在 `GameActivity` 里盖一层按钮,按下/抬起时调:
+
+```java
+SDLActivity.onNativeKeyDown(android.view.KeyEvent.KEYCODE_DPAD_UP);
+SDLActivity.onNativeKeyUp(android.view.KeyEvent.KEYCODE_DPAD_UP);
+```
+
+等于「让触摸冒充遥控器」,native 侧零改动。(方法名以手上的 `SDLActivity.java` 为准)
+
+### 8.7 验收
+
+- [ ] 遥控器方向键能开坦克,松手能停
+- [ ] OK 键能开炮(按住连发,受装填时间限制)
+- [ ] 返回键能暂停;暂停里能继续、能回主菜单
+- [ ] 主菜单里 OK 能进选关,返回能退出
+- [ ] 玩到第 2 关(关卡之间有结算画面,按 OK 继续)
+
+### 8.8 已知遗留(放到阶段 J 收尾)
+
+- 主菜单按「返回」= `transiteToNullAndStop()` → `main()` 返回 → SDL 线程结束,
+  但 Activity 不会自动 `finish()`,屏幕上会**停在最后一帧/黑屏**,得按 HOME 退出。
+  阶段 J 在 Java 侧轮询 `SDLActivity.mSDLThread == null` 后 `finish()` 即可。
+- 退出游戏后**再进一次**是否正常(进程复用 + 我们的 chdir/解包是否幂等),阶段 J 一起验。
 
 ---
 
