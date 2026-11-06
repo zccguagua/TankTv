@@ -26,8 +26,10 @@
 | H | 高分存档 | ✅ 完成 |
 | I | 分辨率与全屏 | 🟡 冷启动待修 |
 | J | TV 打包(图标/banner) | ✅ 完成 |
+| K | 作弊菜单(无限命/加固/无敌) | ✅ 完成 |
 
-**现在能在电视上玩完整的 35 关**,唯一已知问题是「冷启动时画面缩在左上角」(退出重进就正常)。
+**现在能在电视上玩完整的 35 关**。主菜单里还有一项 `Cheat`,可以开无限命、老巢加固、无敌。
+唯一已知问题是「冷启动时画面缩在左上角」(退出重进就正常)。
 
 详细步骤、每步的命令与验收标准、以及已经踩过的坑,全都记在
 **[ANDROID_PORT_PLAN.md](ANDROID_PORT_PLAN.md)** 里。
@@ -44,7 +46,8 @@ TankTv/
 ├── TMP_TV_CHECK.md        装机检查清单
 ├── README.md
 ├── tools/
-│   └── make_tv_art.sh     从游戏贴图生成图标和 banner
+│   ├── make_tv_art.sh     从游戏贴图生成图标和 banner
+│   └── patch_game_for_android.sh  给 game/ 打补丁(作弊菜单必须跑)
 ├── app/                   Android 工程(拷自 SDL2 官方 android-project)
 │   ├── app/               模块(注意双层同名)
 │   │   ├── build.gradle   已改为 CMake + applicationId

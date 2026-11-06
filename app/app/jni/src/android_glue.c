@@ -128,7 +128,8 @@ Java_com_zcc_tanktv_GameActivity_nativeChdir(JNIEnv *env, jclass clazz, jstring 
     (*env)->ReleaseStringUTFChars(env, path, c_path);
 
     if (rc == 0) {
-        /* 必须在 chdir 之后:存档文件按相对路径读写 */
+        /* 必须在 chdir 之后:存档 / 作弊开关都按相对路径读写 */
+        tanktvCheatsLoad();
         tanktvHighScoreStart();
         start_resize_helper();
     }

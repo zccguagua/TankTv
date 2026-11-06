@@ -16,6 +16,7 @@
 #include <android/log.h>
 
 #include "high_score.h"
+#include "TankTvCheats.h"
 
 #define LOG_TAG "TankTv"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
@@ -61,9 +62,14 @@ void *scoreSaverLoop(void *)
 
         unsigned current = HighScore::score;
         if (current != g_last_saved) {
-            writeScoreFile(current);
-            g_last_saved = current;
-            LOGI("highscore saved: %u", current);
+            if (tanktvCheatsAnyOn()) {
+                /* 开了作弊就不污染真实最高分:记住不写,避免反复判断 */
+                g_last_saved = current;
+            } else {
+                writeScoreFile(current);
+                g_last_saved = current;
+                LOGI("highscore saved: %u", current);
+            }
         }
     }
     return nullptr;

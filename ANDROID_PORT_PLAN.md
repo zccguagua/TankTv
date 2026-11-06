@@ -10,7 +10,7 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-06**(收尾:阶段 H 高分持久化 + 阶段 J 图标/banner/TV 属性全部完成;只剩实机验证项)
+最近更新:**2026-11-06**(阶段 K 作弊菜单 完成,版本 0.3.0;只剩实机验证)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
@@ -25,6 +25,7 @@
 | H 存档 | ✅ **完成** | 游戏上游根本没写盘;新增 `high_score_io.cpp` 代劳(启动读回 + 每 2 秒存盘) |
 | I 分辨率/全屏 | 🟡 **部分完成** | resize helper 已改用 display mode 修正窗口;冷启动仍缩左上角(可玩),待实机验证 |
 | J TV 收尾 | ✅ **完成** | 坦克图标(5 档 mipmap)+ 新 banner + `isGame` + 版本 0.2.0;可重复执行 `tools/make_tv_art.sh` |
+| K 作弊菜单 | ✅ **完成**(待实机验证) | 主菜单 `Cheat` → 无限命 / 老巢加固 / 无敌;开关存 `cheats.txt`;需要跑 `tools/patch_game_for_android.sh` |
 
 **当前能玩**:移动 ✅ / 开火 ✅ / 文字 ✅ / 地图 ✅ / 高分保存 ✅。
 冷启动画面缩左上角(暖启动正常),不影响玩。
@@ -39,6 +40,7 @@
 | G 文字 | 看菜单 | `1 PLAYER` / `HI- xxxx` 显示 |
 | H 高分 | 打到 >2000 分后杀进程重开 | `HI-` 数字还是那个值 |
 | J 首页 | 回 TV 桌面看 | 坦克图标 + banner,归在游戏行 |
+| K 作弊 | 主菜单进 `Cheat` 逐个开关 | 三项都能生效且能保存,见 12B.4 |
 
 **已知遗留**:
 
@@ -55,6 +57,7 @@
 > - 已跑通过的机器B:`E:\AndroidProject\TankTv`,SDK `D:\Sdk`,Gradle `D:\tools\gradle-8.1.1`
 > - NDK r26d、CMake 3.22.1、JDK 17 两台一致
 > - `game/`、`third_party/` 被 gitignore,换机需重新下载(见 2B.2 的 codeload 方法):SDL 2.32.4、SDL_image 2.8.8、SDL_mixer 2.8.1、Tanks 游戏源码
+> - **重新下载 `game/` 之后必须跑 `sh tools/patch_game_for_android.sh`**(作弊菜单的 5 处补丁在这里);不跑的话 CMake 会直接报错提醒
 > - `github.com` 直连被封,git push 走代理:`git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push`
 > - `app/app/build.gradle` 的 `ndkPath` 默认值是本机路径,换机要用 `-PndkPath=...` 覆盖
 > - `assembleRelease` 需 `lint.checkReleaseBuilds=false`(否则 lint 依赖下载失败),已在 build.gradle 里配好
@@ -1400,6 +1403,88 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 > 用 U 盘 / 电视上的文件管理器手动装可绕过。
 
 **验收**:TV 首页出现「坦克大战」(有 banner 和坦克图标),点开能玩。
+
+---
+
+## 12B. 阶段 K:作弊菜单(2026-11-06 完成)
+
+**做了什么**:主菜单多一项 `Cheat`,点进去是三个开关:
+
+| 开关 | 效果 | 实现位置 |
+|---|---|---|
+| `INFINITE LIVES` | 无限条命 | `player_destroyed_state.cpp`(死亡动画里把命数补回 10) |
+| `FORTIFY EAGLE` | 老巢加固(钢墙,永不过期) | `stage_environment.cpp`(每帧保持保护状态) |
+| `INVINCIBLE` | 无敌 + 一直保护罩 | `player.cpp` 的 `Player::hit()` + `tank.cpp` 的护盾时长 |
+
+- OK 切换,上下选,返回退回主菜单
+- 开关存在 `cheats.txt`(工作目录),**下次启动仍然生效**
+- 开启了任何一个作弊,最高分**不写盘**(避免污染真实记录)
+
+### 12B.1 为什么需要「补丁脚本」
+
+游戏上游没有作弊功能,而 `game/` 不在版本库里(换电脑要重新下载)。所以拆成两部分:
+
+| 类型 | 放哪里 | 会不会丢 |
+|---|---|---|
+| 新代码(菜单界面 + 开关存储) | `app/app/jni/src/TankTv*.{h,cpp}` | ✅ 进版本库,不会丢 |
+| 对上游源码的 5 处小改动 | `tools/patch_game_for_android.sh` | ✅ 脚本进版本库,下载完重跑即可 |
+
+**每次重新下载 `game/` 之后必须跑一次**:
+
+```sh
+cd /e/AndroidProject/TankTv
+sh tools/patch_game_for_android.sh           # 打补丁(可重复执行,已打的会跳过)
+sh tools/patch_game_for_android.sh --check   # 只检查打了没
+```
+
+> ⚠️ 没打补丁会怎样:**CMake 直接 `FATAL_ERROR` 拦下来**并提示跑脚本。
+> 不拦的话编译也能过,但菜单里根本没有 `Cheat` 这一项,静默失效、很难发现。
+
+### 12B.2 五处补丁分别改了什么
+
+| 文件 | 改动 |
+|---|---|
+| `app_state/menu.cpp` | 加 `Cheat` 菜单项 + 打开新界面 + `#include "TankTvCheatMenu.h"` |
+| `objects/tank/player/player.cpp` | `Player::hit()` 开头:开了无敌就直接 return(顺手挂上护盾) |
+| `objects/tank/tank.cpp` | 护盾时长:`cheat ? 86400000u : AppConfig::tank_shield_time` |
+| `objects/tank/player/player_destroyed_state.cpp` | 死亡动画里先把命数补回 10(所以永远用不完) |
+| `app_state/game/stage_environment.cpp` | 每帧确保 `m_eagle_protected`,并把计时清零(永不过期) |
+
+**为什么游戏代码里能直接写 `tanktv_cheat_*`**:`app/app/jni/src/CMakeLists.txt` 给 `main` 加了
+
+```cmake
+target_compile_options(main PRIVATE -include ".../TankTvCheats.h")
+```
+
+等于给这个 target 的**每个编译单元**强制包含一份 `extern` 声明,不用改上游的 include 列表。
+
+### 12B.3 开关文件(也能手改)
+
+工作目录下的 `cheats.txt`(= `files/assets/cheats.txt`),自解释格式:
+
+```
+infinite_lives=0
+strong_eagle=0
+invincible=0
+```
+
+界面上切换是**立即生效 + 立即写盘**;手改文件则在**下次启动**生效。
+
+### 12B.4 验收
+
+- [ ] 主菜单 4 项:`1 Player` / `2 Players` / `Cheat` / `Exit`
+- [ ] 进 `Cheat`,上下能选,OK 能切,`ON` 绿 / `OFF` 红
+- [ ] 退回主菜单再进来,开关状态还在(说明写盘成功)
+- [ ] 三个全关 → 跟 0.2.0 版手感完全一致
+- [ ] 开 `INVINCIBLE`:被子弹打不死,身上一直有护罩
+- [ ] 开 `FORTIFY EAGLE`:开局老巢周围就是钢墙,打不坏
+- [ ] 开 `INFINITE LIVES`:死一次命数不会掉到 0
+- [ ] 开作弊打的分**不会**写进 `highscore.txt`(退出重开看 `HI-` 没变)
+
+### 12B.5 想彻底去掉这个功能
+
+重新下载 `game/`(覆盖掉补丁)即可,我们的新代码不会被引用;或留着也不影响——
+三个开关全关时游戏行为与原版一致。
 
 ---
 
