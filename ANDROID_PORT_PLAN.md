@@ -51,16 +51,73 @@
 2. **TCL 电视安装**:`adb install` 报 `INSTALL_FAILED_VERIFICATION_FAILURE`
    (TCL 自带的 StrategyService 校验),用 U 盘/文件管理器手动装可绕过。
 
-> ⚠️ **换电脑必看**。本块记录的是「上一次跑通时”的环境,每台机器路徂不同,不要照抄:
->
-> - 已跑通过的机器A:`F:\AndroidProjects\TankTv`,SDK `C:\Users\Administrator\AppData\Local\Android\Sdk`
-> - 已跑通过的机器B:`E:\AndroidProject\TankTv`,SDK `D:\Sdk`,Gradle `D:\tools\gradle-8.1.1`
-> - NDK r26d、CMake 3.22.1、JDK 17 两台一致
-> - `game/`、`third_party/` 被 gitignore,换机需重新下载(见 2B.2 的 codeload 方法):SDL 2.32.4、SDL_image 2.8.8、SDL_mixer 2.8.1、Tanks 游戏源码
-> - **重新下载 `game/` 之后必须跑 `sh tools/patch_game_for_android.sh`**(作弊菜单的 5 处补丁在这里);不跑的话 CMake 会直接报错提醒
-> - `github.com` 直连被封,git push 走代理:`git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push`
-> - `app/app/build.gradle` 的 `ndkPath` 默认值是本机路径,换机要用 `-PndkPath=...` 覆盖
-> - `assembleRelease` 需 `lint.checkReleaseBuilds=false`(否则 lint 依赖下载失败),已在 build.gradle 里配好
+### P.1 换电脑必看(环境 / 网络 / 补丁)
+
+> 下面记录的是「上一次跑通时」的环境,每台机器的路径不同,不要照抄。
+
+**环境(两台机器都跑通过,可作为基准)**
+
+| | 路径 | SDK | Gradle |
+|---|---|---|---|
+| 机器 A | `F:\AndroidProjects\TankTv` | `C:\Users\Administrator\AppData\Local\Android\Sdk` | 随 Android Studio |
+| 机器 B | `E:\AndroidProject\TankTv` | `D:\Sdk` | `D:\tools\gradle-8.1.1` |
+
+NDK r26d、CMake 3.22.1、JDK 17 两台一致。
+
+**开工前按顺序做这 4 步**
+
+1. **拉代码**
+   ```sh
+   git clone https://github.com/zccguagua/TankTv.git   # 或 git pull
+   ```
+   `game/`、`third_party/` 被 gitignore 了,clone 下来没有,要按 2B.2 的 codeload 方法重新下载
+   (SDL 2.32.4、SDL_image 2.8.8、SDL_mixer 2.8.1、Tanks 游戏源码)。
+
+2. **给 game/ 打补丁(只在下过 game/ 之后需要)**
+   ```sh
+   sh tools/patch_game_for_android.sh
+   ```
+   作弊菜单的 5 处改动都在这个脚本里。**不跑的话 CMake 会直接 `FATAL_ERROR` 拦下来**,
+   并提示你跑它——不会默默编出一个没菜单的包。
+
+3. **构建(必须带 `-PndkPath`)**
+   ```sh
+   cd app
+   /d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon --console=plain \
+     -PndkPath=D:/Sdk/ndk/android-ndk-r26d
+   ```
+   `app/app/build.gradle` 里的 `ndkPath` 默认值是另一台机器的路径,不覆盖会报 NDK not configured。
+
+4. **推送(代理坑,已经踩过两次)**
+
+   `github.com` 直连不通。**代理工具开着还不够,git 自己也必须显式带代理参数**,
+   否则仍然是直连,报错是 `Failed to connect ... after 21s` 或 `Recv failure: Connection was reset`。
+
+   ```sh
+   git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push origin main
+   ```
+
+   先确认代理真的在监听(有输出才说明开着):
+   ```sh
+   netstat -ano | grep LISTENING | grep 7890
+   ```
+
+   嫌长就永久配上(只影响这台机器):
+   ```sh
+   git config --global http.proxy  http://127.0.0.1:7890
+   git config --global https.proxy http://127.0.0.1:7890
+   ```
+
+> ⚠️ **注意区分两套代理配置**:
+> - **git** 的代理 = 上面这几行(`~/.gitconfig`)。
+> - **Gradle** 的代理 = `D:/.gradle/gradle.properties` 里写死的 `127.0.0.1:7890`。
+>   代理没开时 Gradle 会全部失败,**这时要把那个文件临时挪走**(见 19.2 末尾)。
+>   两者互不影响,配了一个不会自动带上另一个。
+
+**其它杂项**
+
+- `assembleRelease` 需要 `lint.checkReleaseBuilds=false`,已在 `build.gradle` 里配好
+- 图标/banner 想重新生成:`sh tools/make_tv_art.sh`
 
 ---
 
