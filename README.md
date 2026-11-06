@@ -17,13 +17,17 @@
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 0 | 环境(SDK/NDK/CMake) | ✅ 完成 |
-| B | SDL2 模板跑出 APK | ✅ 完成(已能在电视显示渐变画面) |
+| B | SDL2 模板跑出 APK | ✅ 完成 |
 | C | 接入游戏源码 | ✅ 完成 |
-| D | 资源解包 | ✅ 完成(待实机验证) |
-| E | 声音 | ⬜ 验证即可 |
-| F | 遥控器 / 触摸输入 | ⬜ **下一步** |
-| G | 文字渲染 | ⬜ |
-| H–J | 存档 / 缩放 / TV 打包 | ⬜ |
+| D | 资源解包 | ✅ 完成 |
+| E | 声音 | ✅ 已编入(待实机确认) |
+| F | 遥控器输入 | ✅ 完成(空闲键 → 开火) |
+| G | 文字渲染 | ✅ 完成(stb_truetype) |
+| H | 高分存档 | ✅ 完成 |
+| I | 分辨率与全屏 | 🟡 冷启动待修 |
+| J | TV 打包(图标/banner) | ✅ 完成 |
+
+**现在能在电视上玩完整的 35 关**,唯一已知问题是「冷启动时画面缩在左上角」(退出重进就正常)。
 
 详细步骤、每步的命令与验收标准、以及已经踩过的坑,全都记在
 **[ANDROID_PORT_PLAN.md](ANDROID_PORT_PLAN.md)** 里。
@@ -39,6 +43,8 @@ TankTv/
 ├── ANDROID_PORT_PLAN.md   施工文档(进度看板在最前面)
 ├── TMP_TV_CHECK.md        装机检查清单
 ├── README.md
+├── tools/
+│   └── make_tv_art.sh     从游戏贴图生成图标和 banner
 ├── app/                   Android 工程(拷自 SDL2 官方 android-project)
 │   ├── app/               模块(注意双层同名)
 │   │   ├── build.gradle   已改为 CMake + applicationId

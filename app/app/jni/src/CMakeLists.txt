@@ -25,7 +25,10 @@ target_sources(main PRIVATE
     ${GAME_SOURCES}
     # 阶段 D:chdir 的 JNI 胶水(android.system.Os 没有公开 chdir)
     "${CMAKE_CURRENT_SOURCE_DIR}/android_glue.c"
-    # SDL_ttf 占位实现(阶段 G 换成 stb_truetype)
+    # 阶段 H:最高分读写(不改上游代码,直接操作 HighScore::score)
+    "${CMAKE_CURRENT_SOURCE_DIR}/high_score_io.cpp"
+    # SDL_ttf 占位实现(阶段 G 已经变成 stb_truetype 版本)
+    # 注意:这仍然只是个「SDL_ttf 子集」,不是真的 SDL_ttf
     "${CMAKE_CURRENT_SOURCE_DIR}/../sdl_ttf_stub/src/sdl_ttf_stub.c"
 )
 

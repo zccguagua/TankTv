@@ -10,7 +10,7 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-06**(阶段 F 开火键 + 阶段 G 文字已完成;阶段 I 全屏做了修复但冷启动仍缩左上角,待收尾)
+最近更新:**2026-11-06**(收尾:阶段 H 高分持久化 + 阶段 J 图标/banner/TV 属性全部完成;只剩实机验证项)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
@@ -22,21 +22,38 @@
 | E 声音 | ⬜ 未开始 | SDL_mixer + stb_vorbis 已编进去,资源已就位,大概率直接有声音,只剩验证 |
 | F 输入 | ✅ **完成** | 遥控器空闲键(菜单/频道/彩色/媒体等)→ 开火键 RCTRL,Java 层 `GameActivity.dispatchKeyEvent` 拦截 |
 | G 文字 | ✅ **完成** | `stb_truetype.h` 单头文件实现 SDL_ttf 子集,菜单/分数/GAME OVER 文字已显示 |
-| H 存档 | ⬜ 未开始 | — |
-| I 分辨率/全屏 | 🟡 **部分完成** | resize helper 改用 display mode 修正窗口;冷启动仍缩左上角(可玩),待收尾 |
-| J TV 收尾 | ⬜ 未开始 | — |
+| H 存档 | ✅ **完成** | 游戏上游根本没写盘;新增 `high_score_io.cpp` 代劳(启动读回 + 每 2 秒存盘) |
+| I 分辨率/全屏 | 🟡 **部分完成** | resize helper 已改用 display mode 修正窗口;冷启动仍缩左上角(可玩),待实机验证 |
+| J TV 收尾 | ✅ **完成** | 坦克图标(5 档 mipmap)+ 新 banner + `isGame` + 版本 0.2.0;可重复执行 `tools/make_tv_art.sh` |
 
-**当前能玩**:移动 ✅ / 开火 ✅ / 文字 ✅ / 地图 ✅。冷启动画面缩左上角(暖启动正常),不影响玩。
+**当前能玩**:移动 ✅ / 开火 ✅ / 文字 ✅ / 地图 ✅ / 高分保存 ✅。
+冷启动画面缩左上角(暖启动正常),不影响玩。
 
-**已知遗留(换机后优先看)**:
+### 剩下的全部是「实机验证」项(不需要再改代码)
 
-1. **阶段 I 全屏**:冷启动第一个 `surfaceChanged` 把窗口报成 464x416,`android_glue.c` 的 resize helper 已改成用 `SDL_GetCurrentDisplayMode` + `SDL_SetWindowSize` 修正,但还没在电视上验证完(电视掉线)。需要抓日志看 `resize helper: window XxY -> display XxY -> window XxY` 确认。
-2. **阶段 E 声音**:大概率已可用(SDL_mixer 已编译),上电视验证即可。
-3. **TCL 电视安装**:`adb install` 报 `INSTALL_FAILED_VERIFICATION_FAILURE`(TCL 自带的 StrategyService 校验),用 U 盘/文件管理器手动装可绕过。
+| 验什么 | 怎么验 | 期望 |
+|---|---|---|
+| E 声音 | 进菜单/进关 | 有音效 |
+| I 冷启动全屏 | 完完全全退掉 app 再开 | 画面居中放大、有黑边 |
+| F 开火 | 按遥控器 菜单/频道±/彩色键 | 能开炮 |
+| G 文字 | 看菜单 | `1 PLAYER` / `HI- xxxx` 显示 |
+| H 高分 | 打到 >2000 分后杀进程重开 | `HI-` 数字还是那个值 |
+| J 首页 | 回 TV 桌面看 | 坦克图标 + banner,归在游戏行 |
 
-> ⚠️ **换电脑必看(本机环境记录)**:
+**已知遗留**:
+
+1. **阶段 I 全屏(仅冷启动)**:第一个 `surfaceChanged` 把窗口报成 464x416,
+   `android_glue.c` 的 resize helper 已改成用 `SDL_GetCurrentDisplayMode` + `SDL_SetWindowSize`
+   修正,但还没在电视上验证完。要确认就看日志:
+   `resize helper: window XxY -> display XxY -> window XxY`。
+2. **TCL 电视安装**:`adb install` 报 `INSTALL_FAILED_VERIFICATION_FAILURE`
+   (TCL 自带的 StrategyService 校验),用 U 盘/文件管理器手动装可绕过。
+
+> ⚠️ **换电脑必看**。本块记录的是「上一次跑通时”的环境,每台机器路徂不同,不要照抄:
 >
-> - 本机路径:`F:\AndroidProjects\TankTv`;SDK `C:\Users\Administrator\AppData\Local\Android\Sdk`;NDK `...\ndk\android-ndk-r26d`;CMake `...\cmake\3.22.1`
+> - 已跑通过的机器A:`F:\AndroidProjects\TankTv`,SDK `C:\Users\Administrator\AppData\Local\Android\Sdk`
+> - 已跑通过的机器B:`E:\AndroidProject\TankTv`,SDK `D:\Sdk`,Gradle `D:\tools\gradle-8.1.1`
+> - NDK r26d、CMake 3.22.1、JDK 17 两台一致
 > - `game/`、`third_party/` 被 gitignore,换机需重新下载(见 2B.2 的 codeload 方法):SDL 2.32.4、SDL_image 2.8.8、SDL_mixer 2.8.1、Tanks 游戏源码
 > - `github.com` 直连被封,git push 走代理:`git -c http.proxy=http://127.0.0.1:7890 -c https.proxy=http://127.0.0.1:7890 push`
 > - `app/app/build.gradle` 的 `ndkPath` 默认值是本机路径,换机要用 `-PndkPath=...` 覆盖
@@ -1218,12 +1235,23 @@ SDLActivity.onNativeKeyUp(android.view.KeyEvent.KEYCODE_DPAD_UP);
 - [ ] 主菜单里 OK 能进选关,返回能退出
 - [ ] 玩到第 2 关(关卡之间有结算画面,按 OK 继续)
 
-### 8.8 已知遗留(放到阶段 J 收尾)
+### 8.8 已核实:退出游戏不需要额外处理
 
-- 主菜单按「返回」= `transiteToNullAndStop()` → `main()` 返回 → SDL 线程结束,
-  但 Activity 不会自动 `finish()`,屏幕上会**停在最后一帧/黑屏**,得按 HOME 退出。
-  阶段 J 在 Java 侧轮询 `SDLActivity.mSDLThread == null` 后 `finish()` 即可。
-- 退出游戏后**再进一次**是否正常(进程复用 + 我们的 chdir/解包是否幂等),阶段 J 一起验。
+早先这里写过「`main()` 返回后 Activity 不会 finish()」——**实测是错的**。
+SDL2 的 `SDLActivity.java` 里 `SDLMain.run()` 最后几行就是:
+
+```java
+SDLActivity.nativeRunMain(library, function, arguments);
+if (SDLActivity.mSingleton != null && !SDLActivity.mSingleton.isFinishing()) {
+    SDLActivity.mSDLThread = null;
+    SDLActivity.mSingleton.finish();      // ← 自动退出 Activity
+}
+```
+
+所以主菜单按「返回」会正常回到电视桌面,不用再加工。
+剩下的只有一条:**退出后再进一次**要正常(进程可能被复用)。
+从代码看是幂等的(解包有 `ASSETS_VERSION` 标记会跳过、`mkdirs` 本身幂等),
+但**还没在设备上实际验过**,验收时顺手确认一下。
 
 ---
 
@@ -1251,14 +1279,45 @@ grep -rn "TTF_" game/src/
 
 ## 10. 阶段 H:存档 / 最高分
 
+### 10.1 侦察结论(和预期不一样)
+
 ```sh
-grep -rn "fopen\|ofstream\|ifstream\|highscore" game/src/
+grep -rn "fopen\|ofstream\|ifstream\|highscore\|HighScore" game/src/
 ```
 
-- 如果它**写在自己工作目录**(阶段 D 已 chdir 到内部存储):**直接就能用**,因为那是可写目录。
-- 如果它写到别的固定路径:改成 `SDL_GetPrefPath("", "Tanks")`。
+结果:**游戏根本没有任何文件存档**。`game/src/high_score.h` 全文就是一个内存变量:
 
-**验收**:玩一局 → 杀进程 → 重开,最高分还在。
+```cpp
+namespace HighScore {
+    inline unsigned score = AppConfig::Score::minimal_high_score;  // 2000
+    inline bool checkAndUpdate(unsigned new_score) { ... }
+}
+```
+
+所以「阶段 D 已经 chdir 到可写目录,存档就自动能用了」这个假设**不成立**——
+它压根不写盘。要持久化,只能自己加。
+
+### 10.2 ✅ 已实现:`high_score_io.cpp`(不改上游代码)
+
+新文件 `app/app/jni/src/high_score_io.cpp`,做两件事:
+
+1. **启动时恢复**:`android_glue.c` 的 `nativeChdir()` 在 chdir 成功后调
+   `tanktvHighScoreStart()`,它把工作目录下的 `highscore.txt` 读回来,
+   比当前值大就赋值给 `HighScore::score`。
+2. **运行中保存**:起一个 detached 线程,每 2 秒看一次 `HighScore::score`,
+   变了就写回文件(所以打到新高分后 2 秒内就已经落盘,不用等退出)。
+
+为什么能直接改上游的变量:`HighScore::score` 是 C++17 的 `inline` 变量
+(全程序一份实例),我们的 TU 和游戏代码看到的是同一个对象。
+
+安全措施:读出来的值限制在 `1 .. 99999999` 之间,文件不存在/写磁盘失败只打日志,
+不会崩。存档文件就在 `files/assets/highscore.txt`,和资源同一个目录。
+
+### 10.3 验收
+
+玩一局打到超过 2000 分 → 杀进程重开 → 菜单顶部 `HI- xxxx` 还是那个数。
+
+> logcat 里能看到 `highscore loaded: N` / `highscore saved: N`。
 
 ---
 
@@ -1290,31 +1349,57 @@ android:screenOrientation="landscape"
 
 ## 12. 阶段 J:做成合格的 Android TV 应用
 
-`AndroidManifest.xml` 补充:
+### 12.1 清单(哪些已完成)
 
-```xml
-<uses-feature android:name="android.hardware.touchscreen" android:required="false" />
-<uses-feature android:name="android.software.leanback" android:required="false" />
+| 项 | 状态 | 做法 |
+|---|---|---|
+| TV 首页入口 | ✅ | `<category android:name="android.intent.category.LEANBACK_LAUNCHER" />` |
+| banner 320×180 | ✅ | `android:banner="@drawable/tv_banner"` |
+| 标成游戏(TV 首页归到游戏行) | ✅ | `<application android:isGame="true">` |
+| 图标换成坦克 | ✅ | 从 `texture.png` 切图生成 5 档 mipmap |
+| 应用名 | ✅ | `strings.xml` → 坦克大战 |
+| 不需要触摸屏 | ✅ | `touchscreen required=false` |
+| targetSdk | ✅ | 34 |
+| 版本号 | ✅ | `versionCode 2` / `versionName 0.2.0` |
+| 退出后正常回桌面 | ✅ | SDL 自己 `finish()`,见 8.8 |
 
-<!-- 在 launcher activity 里加 TV 入口 -->
-<intent-filter>
-    <action android:name="android.intent.action.MAIN" />
-    <category android:name="android.intent.category.LAUNCHER" />
-    <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
-</intent-filter>
-```
+### 12.2 图标 / banner 是怎么做出来的
 
-- TV 需要 `banner`(320×180)图标,否则电视上不显示:`android:banner="@drawable/tv_banner"`。
-- 应用名/图标换成坦克。
-- `targetSdk` 别低于 34,否则新 TV 会有兼容模式。
+**不要手工画图**,直接从游戏自己的贴图里切——这样和游戏画面风格一致。
+坐标来自 `game/src/spriteconfig.cpp`:
+
+| 素材 | 贴图坐标 | 用途 |
+|---|---|---|
+| `ST_PLAYER_1` | `{640, 0, 32, 32}` | 玩家坦克(朝上第 1 帧)→ 应用图标 |
+| `ST_TANKS_LOGO` | `{0, 260, 406, 72}` | 游戏 LOGO → banner |
+
+一条命令重新生成全部(素材改了重跑即可):
 
 ```sh
-cd /e/AndroidProject/TankTv/app && ./gradlew assembleDebug
+cd /e/AndroidProject/TankTv
+sh tools/make_tv_art.sh
+```
+
+它会用 ffmpeg 做:
+
+- 图标:32×32 坦克 → 整数倍 nearest 缩放 → `pad` 到 48/72/96/144/192 深色底
+  (整数倍 + nearest 是为了像素风不糊)
+- banner:320×180 黑底 + LOGO 240×43 居中 + 一行 `ANDROID TV` 小字
+  (用游戏自带的 `kongtext.ttf`,所以字体也统一)
+
+> 想换图标风格,只改 `tools/make_tv_art.sh` 里的 `crop`/`scale` 参数即可。
+
+### 12.3 装到电视
+
+```sh
 cd /e/AndroidProject/TankTv
 adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-**验收**:TV 首页出现你的应用卡片(有 banner),点开能玩。
+> TCL 等部分电视会报 `INSTALL_FAILED_VERIFICATION_FAILURE`(自带 StrategyService 校验),
+> 用 U 盘 / 电视上的文件管理器手动装可绕过。
+
+**验收**:TV 首页出现「坦克大战」(有 banner 和坦克图标),点开能玩。
 
 ---
 

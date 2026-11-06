@@ -1,11 +1,12 @@
 /*
  * 阶段 D:给 Java 侧用的最小 JNI 胶水。
  *
- * 两件事:
+ * 三件事:
  * 1) chdir —— 游戏源码里资源路径全是相对路径(appconfig.h),上游代码不改,
  *    只能把进程工作目录切到解包后的目录。android.system.Os 里没有公开的
  *    chdir,所以必须自己写一个。
  * 2) 补发一次 SDL_WINDOWEVENT_RESIZED —— 见下方 send_initial_resize 注释。
+ * 3) 顺带把阶段 H 的最高分存档拉起来(high_score_io.cpp)。
  */
 #include <jni.h>
 #include <unistd.h>
@@ -23,6 +24,9 @@
 #define GAME_WINDOW_ID 1
 #define WAIT_RETRIES   3000   /* 3000 * 10ms = 30s 超时 */
 #define WAIT_STEP_NS   (10 * 1000 * 1000)
+
+/* high_score_io.cpp 里的实现(需要 CWD 已经切到资源目录) */
+extern void tanktvHighScoreStart(void);
 
 static void wait_a_bit(void)
 {
@@ -123,8 +127,11 @@ Java_com_zcc_tanktv_GameActivity_nativeChdir(JNIEnv *env, jclass clazz, jstring 
 
     (*env)->ReleaseStringUTFChars(env, path, c_path);
 
-    if (rc == 0)
+    if (rc == 0) {
+        /* 必须在 chdir 之后:存档文件按相对路径读写 */
+        tanktvHighScoreStart();
         start_resize_helper();
+    }
 
     return rc == 0 ? JNI_TRUE : JNI_FALSE;
 }
