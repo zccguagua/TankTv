@@ -4,6 +4,7 @@ import android.content.res.AssetManager;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 
 import org.libsdl.app.SDLActivity;
 
@@ -31,6 +32,9 @@ public class GameActivity extends SDLActivity {
     private static final int ASSETS_VERSION = 1;
     private static final String ASSETS_DIR = "assets";
     private static final String MARKER = ".extracted_version";
+
+    /** 手柄方向状态:1=上 2=下 4=左 8=右 */
+    private int mDirPressed = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,8 +80,8 @@ public class GameActivity extends SDLActivity {
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         int keyCode = event.getKeyCode();
+        int action = event.getAction();
         if (isFireSourceKey(keyCode)) {
-            int action = event.getAction();
             if (action == KeyEvent.ACTION_DOWN) {
                 if (event.getRepeatCount() == 0) {
                     Log.i(TAG, "fire key: " + keyCode + " -> KEYCODE_CTRL_RIGHT");
@@ -92,12 +96,60 @@ public class GameActivity extends SDLActivity {
         return super.dispatchKeyEvent(event);
     }
 
+    /** 手柄十字键(hatX/hatY)与摇杆(x/y)都映射成方向键。 */
+    @Override
+    public boolean dispatchGenericMotionEvent(MotionEvent event) {
+        float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+        float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+        float stickX = event.getAxisValue(MotionEvent.AXIS_X);
+        float stickY = event.getAxisValue(MotionEvent.AXIS_Y);
+
+        float x = 0f, y = 0f;
+        if (hatX != 0f || hatY != 0f) {
+            x = hatX;
+            y = hatY; // 十字键优先
+        } else {
+            if (Math.abs(stickX) > 0.5f) x = stickX;
+            if (Math.abs(stickY) > 0.5f) y = stickY;
+        }
+        applyDirection(x, y);
+        return super.dispatchGenericMotionEvent(event);
+    }
+
+    private void applyDirection(float x, float y) {
+        updateDir(1, y < -0.5f, KeyEvent.KEYCODE_DPAD_UP);
+        updateDir(2, y > 0.5f, KeyEvent.KEYCODE_DPAD_DOWN);
+        updateDir(4, x < -0.5f, KeyEvent.KEYCODE_DPAD_LEFT);
+        updateDir(8, x > 0.5f, KeyEvent.KEYCODE_DPAD_RIGHT);
+    }
+
+    private void updateDir(int mask, boolean pressed, int keyCode) {
+        boolean was = (mDirPressed & mask) != 0;
+        if (pressed && !was) {
+            SDLActivity.onNativeKeyDown(keyCode);
+        } else if (!pressed && was) {
+            SDLActivity.onNativeKeyUp(keyCode);
+        }
+        if (pressed) mDirPressed |= mask;
+        else mDirPressed &= ~mask;
+    }
+
     /**
      * 可当开火键的空闲键。覆盖常见 Android TV 遥控器的菜单/频道/彩色/媒体键,
      * 保证换一台没有「菜单」键的电视也能开火。
      */
     private static boolean isFireSourceKey(int keyCode) {
         switch (keyCode) {
+            // 手柄按键(SDL 都当成 unknown,正好拿来当开火)
+            case KeyEvent.KEYCODE_BUTTON_A:      // 96
+            case KeyEvent.KEYCODE_BUTTON_B:      // 97
+            case KeyEvent.KEYCODE_BUTTON_C:      // 98
+            case KeyEvent.KEYCODE_BUTTON_X:      // 99
+            case KeyEvent.KEYCODE_BUTTON_Y:      // 100
+            case KeyEvent.KEYCODE_BUTTON_Z:      // 101
+            case KeyEvent.KEYCODE_BUTTON_L1:     // 102
+            case KeyEvent.KEYCODE_BUTTON_R1:     // 103
+            // 遥控器空闲键
             case KeyEvent.KEYCODE_MENU:                  // 82  菜单
             case KeyEvent.KEYCODE_CHANNEL_UP:            // 166 频道+
             case KeyEvent.KEYCODE_CHANNEL_DOWN:          // 167 频道-
