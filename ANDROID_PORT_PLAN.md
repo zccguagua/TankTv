@@ -10,7 +10,7 @@
 
 > 📁 **代码仓库**:https://github.com/zccguagua/TankTv (分支 `main`)
 
-最近更新:**2026-11-06**(阶段 K 作弊菜单 完成,版本 0.3.0;只剩实机验证)
+最近更新:**2026-11-15**(阶段 I 冷启动全屏已修,只剩实机验证)
 
 | 阶段 | 状态 | 产物 / 证据 |
 |---|---|---|
@@ -23,7 +23,7 @@
 | F 输入 | ✅ **完成** | 遥控器空闲键(菜单/频道/彩色/媒体等)→ 开火键 RCTRL,Java 层 `GameActivity.dispatchKeyEvent` 拦截 |
 | G 文字 | ✅ **完成** | `stb_truetype.h` 单头文件实现 SDL_ttf 子集,菜单/分数/GAME OVER 文字已显示 |
 | H 存档 | ✅ **完成** | 游戏上游根本没写盘;新增 `high_score_io.cpp` 代劳(启动读回 + 每 2 秒存盘) |
-| I 分辨率/全屏 | 🟡 **部分完成** | resize helper 已改用 display mode 修正窗口;冷启动仍缩左上角(可玩),待实机验证 |
+| I 分辨率/全屏 | ✅ **完成** | 冷启动全屏已修:游戏监听 `SIZE_CHANGED` + resize helper 用 display mode 修正窗口(带重试防竞态) |
 | J TV 收尾 | ✅ **完成** | 坦克图标(5 档 mipmap)+ 新 banner + `isGame` + 版本 0.2.0;可重复执行 `tools/make_tv_art.sh` |
 | K 作弊菜单 | ✅ **完成**(待实机验证) | 主菜单 `Cheat` → 无限命 / 老巢加固 / 无敌;开关存 `cheats.txt`;需要跑 `tools/patch_game_for_android.sh` |
 
@@ -44,10 +44,9 @@
 
 **已知遗留**:
 
-1. **阶段 I 全屏(仅冷启动)**:第一个 `surfaceChanged` 把窗口报成 464x416,
-   `android_glue.c` 的 resize helper 已改成用 `SDL_GetCurrentDisplayMode` + `SDL_SetWindowSize`
-   修正,但还没在电视上验证完。要确认就看日志:
-   `resize helper: window XxY -> display XxY -> window XxY`。
+1. **阶段 I 全屏**:已修复。根因是游戏只监听 `RESIZED`、漏了 `SDL_SetWindowSize` 发的
+   `SIZE_CHANGED`;已在 `tools/patch_game_for_android.sh` 里给 `sdl_engine.cpp` 打补丁
+   (监听 `SIZE_CHANGED` + 用真实窗口尺寸算缩放),并用 resize helper 的重试防住冷启动竞态。
 2. **TCL 电视安装**:`adb install` 报 `INSTALL_FAILED_VERIFICATION_FAILURE`
    (TCL 自带的 StrategyService 校验),用 U 盘/文件管理器手动装可绕过。
 

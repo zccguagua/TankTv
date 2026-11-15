@@ -74,21 +74,30 @@ static void *send_initial_resize(void *unused)
         return NULL;
     }
 
-    /* 用真实屏幕分辨率修正窗口尺寸,而不是读 window 的尺寸。
-     * 冷启动时第一个 surfaceChanged 可能把窗口报成游戏请求的 464x416,
-     * 导致画面只在左上角;display mode 来自 getRealMetrics,恒为全屏尺寸。 */
-    int old_w = 0, old_h = 0;
-    SDL_GetWindowSize(window, &old_w, &old_h);
+    /* 用真实屏幕分辨率修正窗口尺寸,并带重试。
+     * 冷启动时 helper 线程和视频初始化存在竞态:极少数情况下第一次读
+     * display mode 会拿到 0(视频显示还没初始化完),导致窗口尺寸没被修正。
+     * 所以失败就等一小会重试,最多几次,直到拿到非 0 的有效分辨率。 */
+    for (int attempt = 0; attempt < 5; attempt++) {
+        SDL_DisplayMode mode;
+        if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0) {
+            int old_w = 0, old_h = 0;
+            SDL_GetWindowSize(window, &old_w, &old_h);
+            SDL_SetWindowSize(window, mode.w, mode.h);
+            int new_w = 0, new_h = 0;
+            SDL_GetWindowSize(window, &new_w, &new_h);
+            LOGI("resize helper: window %dx%d -> display %dx%d -> window %dx%d (attempt %d)",
+                 old_w, old_h, mode.w, mode.h, new_w, new_h, attempt);
+            if (new_w == mode.w && new_h == mode.h) {
+                break;  /* 窗口尺寸已经正确 */
+            }
+        } else {
+            LOGE("resize helper: display mode not ready yet (attempt %d)", attempt);
+        }
 
-    SDL_DisplayMode mode;
-    if (SDL_GetCurrentDisplayMode(0, &mode) == 0 && mode.w > 0 && mode.h > 0) {
-        SDL_SetWindowSize(window, mode.w, mode.h);
-        int new_w = 0, new_h = 0;
-        SDL_GetWindowSize(window, &new_w, &new_h);
-        LOGI("resize helper: window %dx%d -> display %dx%d -> window %dx%d",
-             old_w, old_h, mode.w, mode.h, new_w, new_h);
-    } else {
-        LOGE("resize helper: cannot get display mode (window %dx%d)", old_w, old_h);
+        /* 等 500ms 再试 */
+        for (int i = 0; i < 50; i++)
+            wait_a_bit();
     }
 
     return NULL;

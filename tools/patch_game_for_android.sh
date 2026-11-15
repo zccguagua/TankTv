@@ -96,6 +96,17 @@ patch_once "$GAME/app_state/game/stage_environment.cpp" 'TankTv: fortify eagle' 
 \
     if (m_eagle_protected)#'
 
+echo "全屏:监听 SIZE_CHANGED 事件(android_glue.c 的 SDL_SetWindowSize 发的是这个)"
+patch_once "$GAME/engine/sdl/sdl_engine.cpp" 'WindowEvent::SIZE_CHANGED' \
+    's|we.windowEventType() == WindowEvent::RESIZED |||we.windowEventType() == WindowEvent::RESIZED ||\
+            we.windowEventType() == WindowEvent::SIZE_CHANGED |||'
+
+echo "全屏:用真实窗口尺寸算缩放(而不是事件里可能错误的尺寸)"
+patch_once "$GAME/engine/sdl/sdl_engine.cpp" 'SDL_GetWindowSize(m_window' \
+    's|m_renderer->setViewportForWindowSize(we.windowSize());|int w = 0, h = 0;\
+            SDL_GetWindowSize(m_window, \&w, \&h);\
+            m_renderer->setViewportForWindowSize(Size{w, h});|'
+
 echo
 echo "检查结果(每一处都应该能看到 TankTv 标记):"
 grep -n -F "TankTv:" "$GAME/app_state/menu.cpp" \
