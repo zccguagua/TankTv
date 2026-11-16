@@ -1,0 +1,343 @@
+# TankTv 输入映射表（遥控器 / 手柄）
+
+- 适用版本：`1.0.0`（tag `1.0.0`，提交 `671d4f0 Add gamepad support`）
+- 相关代码：
+  - `app/app/src/main/java/com/zcc/tanktv/GameActivity.java` —— TankTv 的输入改写层
+  - `app/app/src/main/java/org/libsdl/app/SDLActivity.java` —— SDL 键码入口（`onNativeKeyDown/Up`）
+  - `third_party/SDL/src/video/android/SDL_androidkeyboard.c` —— Android keycode → SDL scancode 表
+  - `game/src/engine/sdl/sdl_event_mapper.h` —— SDL 事件 → 游戏 `KeyCode`
+  - `game/src/appconfig.h` —— 玩家键位与开火键
+- 用途：记录已完成的手柄/遥控器映射，并给出可复制到其他 SDL2 移植项目的实现骨架。
+
+---
+
+## 0. 输入链路
+
+```
+手柄按键 / 摇杆轴 / 十字键帽
+        │
+        ▼
+GameActivity.dispatchKeyEvent()        ← TankTv 改写：按键 → 开火
+GameActivity.dispatchGenericMotionEvent()  ← TankTv 改写：轴 → 方向键
+        │
+        ▼
+SDLActivity.onNativeKeyDown(Android keycode) / onNativeKeyUp(...)
+        │
+        ▼
+SDL 的 Android keycode → scancode 表
+        │
+        ▼
+SDL_KEYDOWN / SDL_KEYUP（keysym.scancode、keysym.sym）
+        │
+        ▼
+sdl_event_mapper.h：按 keysym.sym 转成游戏 KeyCode
+        │
+        ▼
+菜单 / 选关 / 游戏状态机 / Player
+```
+
+关键点：**游戏只读 SDL 键盘事件**。手柄按键如果不拦截，会被 SDL 当成控制器按钮
+（`SDLControllerManager.onNativePadDown`）走另一条通道，游戏收不到；所以方向与开火都要在 Java 层改写成键盘键码。
+
+---
+
+## 1. 手柄映射（提交 `671d4f0`，可直接复用）
+
+### 1.1 方向：十字键帽 / 左摇杆 → 方向键
+
+| 手柄输入 | Android 事件 | 判定条件 | 注入的 Android keycode | SDL scancode | keysym.sym | 游戏 KeyCode | 功能 |
+|---|---|---|---|---|---|---|---|
+| 十字键上 | `AXIS_HAT_Y` | `<= -0.5` | `KEYCODE_DPAD_UP` (19) | 82 | 1073741906 | `KEY_UP` | 前进 / 菜单上移 |
+| 十字键下 | `AXIS_HAT_Y` | `>= 0.5` | `KEYCODE_DPAD_DOWN` (20) | 81 | 1073741905 | `KEY_DOWN` | 后退 / 菜单下移 |
+| 十字键左 | `AXIS_HAT_X` | `<= -0.5` | `KEYCODE_DPAD_LEFT` (21) | 80 | 1073741904 | `KEY_LEFT` | 左转 / 选关上一关 |
+| 十字键右 | `AXIS_HAT_X` | `>= 0.5` | `KEYCODE_DPAD_RIGHT` (22) | 79 | 1073741903 | `KEY_RIGHT` | 右转 / 选关下一关 |
+| 左摇杆上 | `AXIS_Y` | `<= -0.5` | 同「十字键上」 | 82 | 1073741906 | `KEY_UP` | 同上 |
+| 左摇杆下 | `AXIS_Y` | `>= 0.5` | 同「十字键下」 | 81 | 1073741905 | `KEY_DOWN` | 同上 |
+| 左摇杆左 | `AXIS_X` | `<= -0.5` | 同「十字键左」 | 80 | 1073741904 | `KEY_LEFT` | 同上 |
+| 左摇杆右 | `AXIS_X` | `>= 0.5` | 同「十字键右」 | 79 | 1073741903 | `KEY_RIGHT` | 同上 |
+
+优先级：**十字键（HAT）非零时忽略摇杆**；两者都回中时松开全部方向。
+
+### 1.2 开火：面键 / 肩键 → 右 Ctrl
+
+| 手柄按键 | Android keycode | 数值 | 注入后 | SDL scancode | keysym.sym | 游戏 KeyCode | 功能 |
+|---|---|---|---|---|---|---|---|
+| A | `KEYCODE_BUTTON_A` | 96 | `KEYCODE_CTRL_RIGHT` (114) | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| B | `KEYCODE_BUTTON_B` | 97 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| C | `KEYCODE_BUTTON_C` | 98 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| X | `KEYCODE_BUTTON_X` | 99 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| Y | `KEYCODE_BUTTON_Y` | 100 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| Z | `KEYCODE_BUTTON_Z` | 101 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| L1 | `KEYCODE_BUTTON_L1` | 102 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+| R1 | `KEYCODE_BUTTON_R1` | 103 | 同上 | 228 | 1073742052 | `KEY_RCTRL` | 玩家 1 开火 |
+
+> 游戏的开火键写死为 `KeyCode::KEY_RCTRL`（`game/src/appconfig.h` 的 `P1_FIRE_KEY`），
+> 手柄按键在 SDL 的 Android 键表里都是 `SDL_SCANCODE_UNKNOWN`（会被 SDL 丢弃），
+> 因此在 Java 层统一改写成 `KEYCODE_CTRL_RIGHT`，正好落到 `SDL_SCANCODE_RCTRL`。
+
+### 1.3 未映射的手柄输入
+
+| 输入 | Android keycode | 当前行为 |
+|---|---|---|
+| L2 / R2 | 104 / 105 | 未拦截，交给 SDL 控制器通道，游戏不响应 |
+| 左/右摇杆按下 | 106 / 107 | 同上 |
+| Start / Select / Mode | 108 / 109 / 110 | 同上 |
+| 手柄 D-pad 直接上报 `KEYCODE_DPAD_*` 的型号 | 19–22 | 未拦截，走 SDL 控制器通道；方向主要依赖 HAT/摇杆轴 |
+| 手柄 OK（`KEYCODE_DPAD_CENTER`） | 23 | 未拦截，SDL 译成 `SELECT`，游戏不识别 |
+
+### 1.4 实现要点
+
+- 方向采用**边沿触发**：只在「未按下 → 按下」「按下 → 未按下」时各发一次
+  `onNativeKeyDown/Up`，避免手柄每帧重复发送。状态用位掩码去重：`1=上 2=下 4=左 8=右`。
+- 游戏侧 `Player::handleKeyboardEvent` 记录的是**按键状态**（pressed 标志），
+  所以必须成对发送 DOWN / UP，只发 DOWN 会导致坦克一直移动。
+- 必须在 `dispatchGenericMotionEvent` 末尾调用 `super`，保留 SDL 自己的手柄/摇杆处理。
+- 摇杆阈值硬编码为 `0.5`。
+
+---
+
+## 2. 遥控器映射（阶段 F 已完成）
+
+### 2.1 方向 / 确认 / 返回
+
+| 遥控器键 | Android keycode | 数值 | SDL scancode | keysym.sym | 游戏 KeyCode | 功能 |
+|---|---|---|---|---|---|---|
+| 上 | `KEYCODE_DPAD_UP` | 19 | 82 | 1073741906 | `KEY_UP` | 前进 / 菜单上移 / 选关上一关 |
+| 下 | `KEYCODE_DPAD_DOWN` | 20 | 81 | 1073741905 | `KEY_DOWN` | 后退 / 菜单下移 / 选关下一关 |
+| 左 | `KEYCODE_DPAD_LEFT` | 21 | 80 | 1073741904 | `KEY_LEFT` | 左转 / 选关上一关 |
+| 右 | `KEYCODE_DPAD_RIGHT` | 22 | 79 | 1073741903 | `KEY_RIGHT` | 右转 / 选关下一关 |
+| OK / 确定 | `KEYCODE_ENTER` | 66 | 40 | 13 | `KEY_RETURN` | 菜单确认、开始关卡、游戏中暂停、暂停中继续 |
+| 返回 | `KEYCODE_ESCAPE` | 111 | 41 | 27 | `KEY_ESCAPE` | 回主菜单；在主菜单里退出应用 |
+
+> 表中的 `scancode / sym` 来自 `ANDROID_PORT_PLAN.md` §2B.8 的实机测量（该电视遥控器的
+> OK 上报 `KEYCODE_ENTER`，返回上报 `KEYCODE_ESCAPE`）。方向键本身无需改写，SDL 直接映射。
+
+### 2.2 开火兜底键（阶段 F）
+
+游戏玩家 1 的开火键是右 Ctrl，遥控器没有这个键；而 OK 已经用于确认/暂停，
+所以把遥控器上的空闲键统一改写成开火（`KEYCODE_CTRL_RIGHT` → `SDL_SCANCODE_RCTRL`）：
+
+| 遥控器键 | Android keycode | 数值 |
+|---|---|---|
+| 菜单 | `KEYCODE_MENU` | 82 |
+| 频道 + | `KEYCODE_CHANNEL_UP` | 166 |
+| 频道 − | `KEYCODE_CHANNEL_DOWN` | 167 |
+| 红 | `KEYCODE_PROG_RED` | 183 |
+| 绿 | `KEYCODE_PROG_GREEN` | 184 |
+| 黄 | `KEYCODE_PROG_YELLOW` | 185 |
+| 蓝 | `KEYCODE_PROG_BLUE` | 186 |
+| 节目指南 | `KEYCODE_GUIDE` | 172 |
+| 信息 | `KEYCODE_INFO` | 165 |
+| 设置 | `KEYCODE_SETTINGS` | 176 |
+| 播放/暂停 | `KEYCODE_MEDIA_PLAY_PAUSE` | 85 |
+| 停止 | `KEYCODE_MEDIA_STOP` | 86 |
+| 收藏 | `KEYCODE_BOOKMARK` | 174 |
+| 字幕 | `KEYCODE_CAPTIONS` | 175 |
+| 录制 | `KEYCODE_DVR` | 173 |
+| 内容菜单 | `KEYCODE_TV_CONTENTS_MENU` | 256 |
+| 媒体上下文菜单 | `KEYCODE_TV_MEDIA_CONTEXT_MENU` | 257 |
+
+这些键在 SDL 的 Android 键表里大多没有对应项（`UNKNOWN`，会被 SDL 直接丢掉）；
+菜单、播放/暂停、停止、收藏虽然有 scancode，但游戏也不识别。所以必须在 Java 层用原始
+Android keycode 拦截，不能放在 SDL 事件过滤器里。
+
+### 2.3 设备差异（换遥控器时必须确认）
+
+TankTv 这台电视的 OK/返回直接是 `ENTER`/`ESCAPE`，所以能对上游戏的 `KEY_RETURN`/`KEY_ESCAPE`。
+但很多遥控器会这样上报：
+
+| 遥控器键 | 常见 Android keycode | SDL 会译成 | 游戏 mapper 是否识别 |
+|---|---|---|---|
+| OK / 确定 | `KEYCODE_DPAD_CENTER` (23) | `SDL_SCANCODE_SELECT` (119) / sym 1073741943 | ❌ 不识别 |
+| 返回 | `KEYCODE_BACK` (4) | `SDL_SCANCODE_AC_BACK` (270) / sym 1073742094 | ❌ 不识别 |
+
+遇到这类遥控器，需要在 Java 层做归一化（见 §4.3），否则 OK/返回会失效。
+
+---
+
+## 3. 游戏内按键语义（游戏源码，供对照）
+
+| KeyCode | 菜单 | 选关 | 游戏中 | 暂停 | 结算/成绩 |
+|---|---|---|---|---|---|
+| `KEY_UP` / `KEY_DOWN` | 上下选择（循环） | 上一关 / 下一关 | 前进 / 后退 | — | — |
+| `KEY_LEFT` / `KEY_RIGHT` | — | 上一关 / 下一关 | 左转 / 右转 | — | — |
+| `KEY_RETURN` | 确认 | 开始关卡 | 暂停 | 继续 | 继续 |
+| `KEY_SPACE` | 确认（与 RETURN 等价） | 开始关卡 | — | — | — |
+| `KEY_ESCAPE` | 退出应用 | 回主菜单 | 回主菜单 | 回主菜单 | 回主菜单 |
+| `KEY_RCTRL` | — | — | 玩家 1 开火 | — | — |
+| `KEY_LCTRL` | — | — | 玩家 2 开火 | — | — |
+| `KEY_W` / `KEY_S` | — | — | 玩家 2 前进 / 后退 | — | — |
+| `KEY_A` / `KEY_D` | — | — | 玩家 2 左转 / 右转 | — | — |
+
+调试热键（游戏中，`game_playing_state.cpp`）：
+
+| 键 | 功能 |
+|---|---|
+| `KEY_N` | 直接通过本关 |
+| `KEY_B` | 回退一关 |
+| `KEY_T` | 显示/隐藏敌人目标 |
+
+其他：`KEY_F11` 切换全屏（`sdl_engine.cpp`）；主菜单第 3 项进入内部作弊菜单。
+
+> 注意：`Player` 的方向键来自 `AppConfig::player_1_keys / player_2_keys`
+> （方向键 + 右/左 Ctrl），因此所有方向输入最终都必须是 `KEY_UP/DOWN/LEFT/RIGHT`。
+
+---
+
+## 4. 可复用实现（复制到其他 SDL2 游戏）
+
+### 4.1 手柄方向（`GameActivity`）
+
+```java
+private int mDirPressed = 0;   // 1=上 2=下 4=左 8=右
+
+@Override
+public boolean dispatchGenericMotionEvent(MotionEvent event) {
+    float hatX = event.getAxisValue(MotionEvent.AXIS_HAT_X);
+    float hatY = event.getAxisValue(MotionEvent.AXIS_HAT_Y);
+    float stickX = event.getAxisValue(MotionEvent.AXIS_X);
+    float stickY = event.getAxisValue(MotionEvent.AXIS_Y);
+
+    float x = 0f, y = 0f;
+    if (hatX != 0f || hatY != 0f) {
+        x = hatX;
+        y = hatY;                       // 十字键优先
+    } else {
+        if (Math.abs(stickX) > 0.5f) x = stickX;
+        if (Math.abs(stickY) > 0.5f) y = stickY;
+    }
+    applyDirection(x, y);
+    return super.dispatchGenericMotionEvent(event);
+}
+
+private void applyDirection(float x, float y) {
+    updateDir(1, y < -0.5f, KeyEvent.KEYCODE_DPAD_UP);
+    updateDir(2, y >  0.5f, KeyEvent.KEYCODE_DPAD_DOWN);
+    updateDir(4, x < -0.5f, KeyEvent.KEYCODE_DPAD_LEFT);
+    updateDir(8, x >  0.5f, KeyEvent.KEYCODE_DPAD_RIGHT);
+}
+
+private void updateDir(int mask, boolean pressed, int keyCode) {
+    boolean was = (mDirPressed & mask) != 0;
+    if (pressed && !was) {
+        SDLActivity.onNativeKeyDown(keyCode);
+    } else if (!pressed && was) {
+        SDLActivity.onNativeKeyUp(keyCode);
+    }
+    if (pressed) mDirPressed |= mask;
+    else mDirPressed &= ~mask;
+}
+```
+
+### 4.2 任意键 → 开火
+
+```java
+@Override
+public boolean dispatchKeyEvent(KeyEvent event) {
+    int keyCode = event.getKeyCode();
+    if (isFireSourceKey(keyCode)) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            SDLActivity.onNativeKeyDown(KeyEvent.KEYCODE_CTRL_RIGHT);
+            return true;
+        } else if (event.getAction() == KeyEvent.ACTION_UP) {
+            SDLActivity.onNativeKeyUp(KeyEvent.KEYCODE_CTRL_RIGHT);
+            return true;
+        }
+    }
+    return super.dispatchKeyEvent(event);
+}
+
+private static boolean isFireSourceKey(int keyCode) {
+    switch (keyCode) {
+        case KeyEvent.KEYCODE_BUTTON_A:
+        case KeyEvent.KEYCODE_BUTTON_B:
+        case KeyEvent.KEYCODE_BUTTON_C:
+        case KeyEvent.KEYCODE_BUTTON_X:
+        case KeyEvent.KEYCODE_BUTTON_Y:
+        case KeyEvent.KEYCODE_BUTTON_Z:
+        case KeyEvent.KEYCODE_BUTTON_L1:
+        case KeyEvent.KEYCODE_BUTTON_R1:
+        case KeyEvent.KEYCODE_MENU:
+        case KeyEvent.KEYCODE_CHANNEL_UP:
+        case KeyEvent.KEYCODE_CHANNEL_DOWN:
+        case KeyEvent.KEYCODE_PROG_RED:
+        case KeyEvent.KEYCODE_PROG_GREEN:
+        case KeyEvent.KEYCODE_PROG_YELLOW:
+        case KeyEvent.KEYCODE_PROG_BLUE:
+        case KeyEvent.KEYCODE_GUIDE:
+        case KeyEvent.KEYCODE_INFO:
+        case KeyEvent.KEYCODE_SETTINGS:
+        case KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE:
+        case KeyEvent.KEYCODE_MEDIA_STOP:
+        case KeyEvent.KEYCODE_BOOKMARK:
+        case KeyEvent.KEYCODE_CAPTIONS:
+        case KeyEvent.KEYCODE_DVR:
+        case KeyEvent.KEYCODE_TV_CONTENTS_MENU:
+        case KeyEvent.KEYCODE_TV_MEDIA_CONTEXT_MENU:
+            return true;
+        default:
+            return false;
+    }
+}
+```
+
+### 4.3 可选：OK / 返回 归一化（TankTv 当前未启用）
+
+```java
+// 放在 dispatchKeyEvent 里，开火判断之后
+int normalized = keyCode;
+if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER) {
+    normalized = KeyEvent.KEYCODE_ENTER;   // OK → 回车
+} else if (keyCode == KeyEvent.KEYCODE_BACK) {
+    normalized = KeyEvent.KEYCODE_ESCAPE;  // 返回 → Esc
+}
+if (normalized != keyCode) {
+    if (event.getAction() == KeyEvent.ACTION_DOWN) {
+        SDLActivity.onNativeKeyDown(normalized);
+    } else if (event.getAction() == KeyEvent.ACTION_UP) {
+        SDLActivity.onNativeKeyUp(normalized);
+    }
+    return true;
+}
+```
+
+TankTv 的遥控器直接上报 `ENTER`/`ESCAPE`，所以没有启用这段；换设备时可以加上以兼容
+`DPAD_CENTER`/`BACK` 型遥控器。
+
+### 4.4 移植步骤
+
+1. 确认目标游戏的核心键位（方向、开火、确认、返回）对应哪些 `KeyCode` / `sym`。
+2. 手柄方向：用 `dispatchGenericMotionEvent` 读 `HAT`/`AXIS`，按 §4.1 合成方向键。
+3. 开火：把游戏要求的开火键码填进 §4.2，把空闲键/手柄键改写成该键码。
+4. 确认/返回：若游戏只认 `RETURN`/`ESCAPE`，按 §4.3 归一化。
+5. 每次改动只在 `ACTION_DOWN && repeatCount == 0` 打一次日志，便于实机核对键值。
+
+---
+
+## 5. 已知限制与坑
+
+1. **手柄按键必须在 Java 层拦截**：SDL 会把 `KEYCODE_BUTTON_*` 当成控制器按钮
+   （`SDLControllerManager.onNativePadDown`），游戏只读键盘，收不到。
+2. **SDL 的 Android 键表不等于遥控器实测值**：`DPAD_CENTER → SELECT`、`BACK → AC_BACK`，
+   而 `sdl_event_mapper.h` 只识别 `RETURN`/`ESCAPE`。换遥控器时按 §4.3 处理。
+3. **B / Y 在本作里也是开火**：提交说明写的是「B=返回、Y=确认仍然有效」，但当前
+   `isFireSourceKey()` 同时包含 `BUTTON_B`(97) 和 `BUTTON_Y`(100)，标准手柄上报这两个键时
+   会被改写成开火，不会到达 SDL。只有当手柄把 B/Y 上报成 `KEYCODE_BACK`/`KEYCODE_ENTER`
+   （部分 TV 模式手柄会这样）时，才表现为返回/确认。要固定语义，需把 B/Y 移出开火列表。
+4. **手柄 D-pad 以按键事件上报的型号**：本实现只处理 HAT/摇杆轴。若某手柄的十字键上报
+   `KEYCODE_DPAD_*`，这些事件会走 SDL 控制器通道，方向可能无效；可在 `dispatchKeyEvent`
+   里把 `SOURCE_GAMEPAD/SOURCE_JOYSTICK` 的 `DPAD_*` 改写后转发到键盘通道。
+5. **方向必须成对发送 DOWN/UP**：游戏用按键状态驱动移动，只发 DOWN 会一直走。
+6. **按住方向键会产生重复 DOWN**：`updateDir` 的位掩码去重保证每个方向只发一次边沿。
+7. **摇杆死区**：阈值固定 `0.5`，廉价手柄可能漂移；可提高到 `0.6` 或按轴单独设死区。
+8. **只做了 1P**：2P 开火键是 `KEYCODE_CTRL_LEFT`(113)，2P 移动是 W/S/A/D，未映射到手柄。
+
+---
+
+## 6. 实测记录与出处
+
+- 遥控器键值表：`ANDROID_PORT_PLAN.md` §2B.8「遥控器按键表（阶段 F 直接抄，别再测）」
+- 开火键改写：提交 `5ef6c86 Map remote spare keys to fire`
+- 手柄支持：提交 `671d4f0 Add gamepad support`
+- SDL 版本：2.32.4；渲染后端 OpenGL ES 2.0
+- 开火键定义：`game/src/appconfig.h`（`P1_FIRE_KEY = KeyCode::KEY_RCTRL`）

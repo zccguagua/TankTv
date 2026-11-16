@@ -437,11 +437,14 @@ APK 内容:
 | 下 | 81 | 1073741905 | SDL_SCANCODE_DOWN |
 | 左 | 80 | 1073741904 | SDL_SCANCODE_LEFT |
 | 右 | 79 | 1073741903 | SDL_SCANCODE_RIGHT |
-| OK / 确定 | 40 | 13 | SDL_SCANCODE_RETURN → 阶段 F 映射成开火 |
-| 返回 | 41 | 27 | SDL_SCANCODE_ESCAPE → 阶段 F 改成暂停/返回 |
+| OK / 确定 | 40 | 13 | SDL_SCANCODE_RETURN → 确认 / 暂停 |
+| 返回 | 41 | 27 | SDL_SCANCODE_ESCAPE → 回主菜单 |
 
 > 注意:OK 键 = 回车(不是玩家1开火键);返回键 = Escape。当前引导程序里
 > `Escape` 会退出 app,所以按返回会直接退出——这是阶段 B 的预期行为,阶段 F 要去掉。
+
+> 手柄、遥控器的完整映射(含 Android keycode、SDL scancode/sym、游戏内功能、
+> 可复用代码与已知坑)见 [`game_controller_key_map.txt`](game_controller_key_map.txt)。
 
 ---
 
