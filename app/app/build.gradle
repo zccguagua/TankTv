@@ -15,13 +15,13 @@ android {
 
     // NDK 路径。可以用 -PndkPath=D:/xxx 覆盖,或改下面的默认值。
     // (不用 local.properties 里的 ndk.dir,那个写法已被弃用)
-    ndkPath project.findProperty('ndkPath') ?: 'C:/Users/Administrator/AppData/Local/Android/Sdk/ndk/android-ndk-r26d'
+    ndkPath project.findProperty('ndkPath') ?: 'D:/Sdk/ndk/android-ndk-r25c'
 
     defaultConfig {
         if (buildAsApplication) {
             applicationId "com.zcc.tanktv"
         }
-        minSdkVersion 21
+        minSdkVersion 19
         targetSdkVersion 34
         versionCode 3
         versionName "0.3.0"
@@ -31,8 +31,10 @@ android {
             //     abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
             // }
             cmake {
-                arguments "-DANDROID_APP_PLATFORM=android-21",
-                          "-DANDROID_STL=c++_shared",
+                // 原生 API 由 AGP 按 minSdkVersion 推导为 ANDROID_PLATFORM=android-19,
+                // 不要额外传 ANDROID_APP_PLATFORM（CMake 不认这个变量）。
+                // 注意：NDK 必须 ≤ r25c，r26 起最低只支持 android-21。
+                arguments "-DANDROID_STL=c++_shared",
                           // SDL_mixer:不跑 external/ 下载脚本,只编实际需要的格式
                           // 游戏音效全是 .ogg,而 Mix_LoadWAV 对非 WAV 会 fallback 到
                           // Mix_LoadMusic_RW,所以 OGG 必须开(STB = stb_vorbis,零依赖)

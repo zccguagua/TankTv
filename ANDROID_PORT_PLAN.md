@@ -205,7 +205,7 @@ local.properties
 | JDK | **17**(AGP 8.x 要求) | 装 Android Studio 自带的那个即可 |
 | Android Studio | 最新稳定版 | 只为拿 SDK/NDK/CMake,不一定用它开发 |
 | Android SDK Platform | API 34 或 35 | |
-| **NDK** | **r26d / r27 LTS** | 本机用的是 `android-ndk-r26d`,实测 SDL2 2.32.4 编译通过 |
+| **NDK** | **r25c**（或更老） | NDK r26 起最低只支持 android-21；本机用 `android-ndk-r25c`，实测 SDL2 2.32.4 编译通过，`armeabi-v7a` 产物为 API 19 |
 | **CMake** | **3.22.1**(SDK Manager 里那个版本) | 与 AGP 匹配 |
 | Git | 任意 | |
 | MSYS2 | 可选,仅阶段 A 用 | 见阶段 A |
@@ -523,9 +523,9 @@ set(SDL2_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/SDL")
 
 再检查 `app/app/build.gradle` 里的:
 - `applicationId`(本项目的最终值是 `com.zcc.tanktv`,写在 `defaultConfig` 里)
-- `minSdk` → 21
+- `minSdk` → 19（最低 Android 4.4）
 - `targetSdk` / `compileSdk` → 34 或 35
-- `ndkVersion` → 你装的版本
+- `ndkPath` → 你装的版本（**必须是 r25c 或更老**，否则原生只能到 API 21）
 
 ### 4.4 构建
 
@@ -546,11 +546,18 @@ cmake.dir=D\:\\Sdk\\cmake\\3.22.1
 |---|---|---|
 | `namespace` | `"org.libsdl.app"` | 保持不动(Java 里的包名)|
 | `defaultConfig.applicationId` | `"com.zcc.tanktv"` | **必须写在 defaultConfig 里**;可随时改,改完是另一个 app |
-| `minSdkVersion` | `21` | 模板的 19 太老 |
+| `minSdkVersion` | `19` | 最低支持 Android 4.4（API 19）；需要 NDK ≤ r25c |
 | `targetSdkVersion` / `compileSdkVersion` | `34` | 本机已装 |
-| `ndkPath` | `'D:/Sdk/ndk/android-ndk-r26d'` | 用 `ndkPath`,**不要用 local.properties 的 `ndk.dir`**(已弃用,会报 CXX5106)|
-| 构建后端 | 注释掉 `ndkBuild`,启用 `cmake` | 模板默认是 ndk-build |
-| `abiFilters` | 先只留 `'arm64-v8a'` | 编译快 4 倍 |
+| `ndkPath` | `'D:/Sdk/ndk/android-ndk-r25c'` | 用 `ndkPath`,**不要用 local.properties 的 `ndk.dir`**(已弃用,会报 CXX5106)|
+| `abiFilters` | `'armeabi-v7a', 'arm64-v8a'` | 4.4 设备只有 32 位,必须保留 `armeabi-v7a` |
+
+> **为什么必须用 NDK ≤ r25c**:NDK r26 起最低只支持 `android-21`。若用 r26 配 `minSdkVersion 19`,
+> 构建**不会报错**,但 `ANDROID_PLATFORM` 会被静默夹到 21,产物与 manifest 不一致(4.4 上可能启动即崩)。
+> 校验方法(构建后):
+> 1. `app/app/.cxx/Debug/<hash>/armeabi-v7a/CMakeCache.txt` 里应为
+>    `ANDROID_PLATFORM=android-19`、`CMAKE_SYSTEM_VERSION=19`;
+> 2. `llvm-readelf -n libmain.so` 的 `.note.android.ident` 首 4 字节为 `13 00 00 00`(0x13 = 19);
+>    `arm64-v8a` 为 `15 00 00 00`(0x15 = 21)属正常——64 位 Android 从 5.0 才开始。
 
 构建命令(**注意不是 `./gradlew`,见 2B.4**):
 
@@ -1721,10 +1728,10 @@ ls third_party/SDL/CMakeLists.txt   # SDL 在
 ls app/app/jni/CMakeLists.txt       # 工程在
 
 # 4. 直接重建一次,看是不是还是 SUCCESSFUL(增量构建约 20~30 秒)
-#    ⚠️ 必须带 -PndkPath,否则会用 build.gradle 里另一台机器的默认路径
+#    ⚠️ 必须带 -PndkPath,否则会用 build.gradle 里的默认路径
 cd app
 /d/tools/gradle-8.1.1/bin/gradle assembleDebug --no-daemon --console=plain \
-  -PndkPath=D:/Sdk/ndk/android-ndk-r26d | tail -5
+  -PndkPath=D:/Sdk/ndk/android-ndk-r25c | tail -5
 ```
 
 只要第 4 步是 `BUILD SUCCESSFUL`,就可以接**阶段 F(遥控器开火键)**。
@@ -1739,7 +1746,7 @@ cd app
 > ```
 
 > 如果换的是**全新的机器**,依赖需要重新准备:
-> 1. 装 JDK 17 + SDK(platform 34)+ NDK r26d + CMake 3.22.1
+> 1. 装 JDK 17 + SDK(platform 34)+ NDK r25c + CMake 3.22.1
 > 2. 重新拉 `third_party/SDL`(2B.2 的 codeload 方法)与 `game/`
 > 3. 下 Gradle 镜像包(2B.4)
 > 4. 改 `app/local.properties` 的 `sdk.dir` 和 `app/app/build.gradle` 的 `ndkPath`

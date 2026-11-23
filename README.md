@@ -116,10 +116,10 @@ adb install -r app/app/build/outputs/apk/debug/app-debug.apk
 |---|---|
 | JDK | 17 |
 | Android SDK | platform 34 |
-| NDK | r26d(或 r27) |
+| NDK | r25c(≤ r25c,否则原生编不到 API 19) |
 | CMake | 3.22.1 |
 | Gradle | 8.1.1 |
-| 设备 | Android TV / 盒子(APK 同时带 `arm64-v8a` 和 `armeabi-v7a`) |
+| 设备 | Android 4.4(API 19)及以上;APK 同时带 `arm64-v8a` 和 `armeabi-v7a`(4.4 设备走 32 位) |
 
 ---
 
